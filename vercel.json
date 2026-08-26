@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/config/wsgi.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxDuration": 90
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "backend/config/wsgi.py"
+    }
+  ]
+}
