@@ -427,77 +427,197 @@ export function RiskCorridorMapLayer({
 }
 
 /**
- * Renders any dynamic single route (e.g. from vehicle allocation or border audit)
- * colored according to the 3-Tier Risk System
+ * Breaks a multi-point route into individual stretch segments [P_i, P_{i+1}]
+ * and evaluates localized risk for each stretch so an isolated blockage at point D
+ * only blocks C->D without falsely coloring the clear A->B or B->C stretches red.
+ */
+export function buildDynamicRouteSegments(routeCoordinates, conditions = [], waypointAnalysis = [], defaultRisk = 0.2) {
+  if (!routeCoordinates || routeCoordinates.length < 2) return [];
+
+  const segments = [];
+  for (let i = 0; i < routeCoordinates.length - 1; i++) {
+    const p1 = routeCoordinates[i];
+    const p2 = routeCoordinates[i + 1];
+    const segMidLat = (p1[0] + p2[0]) / 2.0;
+    const segMidLon = (p1[1] + p2[1]) / 2.0;
+
+    // Check if any active ground blockage/hazard is on or near this specific stretch
+    let segmentRisk = defaultRisk;
+    let matchingHazard = null;
+    let minHazardDistKm = Infinity;
+
+    if (Array.isArray(conditions) && conditions.length > 0) {
+      for (const cond of conditions) {
+        const cLat = cond.location?.latitude || cond.latitude;
+        const cLon = cond.location?.longitude || cond.longitude;
+        if (cLat && cLon) {
+          const dLatMid = (cLat - segMidLat) * 111.0;
+          const dLonMid = (cLon - segMidLon) * 111.0 * Math.cos((segMidLat * Math.PI) / 180);
+          const distMid = Math.sqrt(dLatMid * dLatMid + dLonMid * dLonMid);
+
+          const dLat1 = (cLat - p1[0]) * 111.0;
+          const dLon1 = (cLon - p1[1]) * 111.0 * Math.cos((p1[0] * Math.PI) / 180);
+          const dist1 = Math.sqrt(dLat1 * dLat1 + dLon1 * dLon1);
+
+          const dLat2 = (cLat - p2[0]) * 111.0;
+          const dLon2 = (cLon - p2[1]) * 111.0 * Math.cos((p2[0] * Math.PI) / 180);
+          const dist2 = Math.sqrt(dLat2 * dLat2 + dLon2 * dLon2);
+
+          const distMin = Math.min(distMid, dist1, dist2);
+          const impactRadiusKm = (cond.radius_meters || 1400) / 1000.0;
+
+          if (distMin <= Math.max(impactRadiusKm, 2.0) && distMin < minHazardDistKm) {
+            minHazardDistKm = distMin;
+            matchingHazard = cond;
+          }
+        }
+      }
+    }
+
+    if (matchingHazard) {
+      const val = (matchingHazard.value || matchingHazard.condition_type || '').toLowerCase();
+      const isBlocked = val.includes('block') || val.includes('landslide') || val.includes('closed') || val.includes('impassable');
+      const isFlood = val.includes('flood') || val.includes('inundat');
+      segmentRisk = isBlocked ? 0.92 : isFlood ? 0.76 : (matchingHazard.risk_score || 0.70);
+    } else if (Array.isArray(waypointAnalysis) && waypointAnalysis.length > i) {
+      const wp = waypointAnalysis[i];
+      segmentRisk = wp.risk_score || 0.15;
+    } else {
+      segmentRisk = 0.15; // Unobstructed stretch defaults to safe
+    }
+
+    const division = getRiskDivision(segmentRisk);
+
+    segments.push({
+      index: i + 1,
+      startCoord: p1,
+      endCoord: p2,
+      coordinates: [p1, p2],
+      riskScore: segmentRisk,
+      division,
+      hazard: matchingHazard,
+      hazardDistanceKm: minHazardDistKm !== Infinity ? minHazardDistKm : null,
+      statusLabel: division.key === 'critical' ? 'BLOCKED / CRITICAL OBSTRUCTION' : division.key === 'warning' ? 'CAUTION / ELEVATED RISK' : 'OPEN & SAFE TRANSIT',
+    });
+  }
+
+  return segments;
+}
+
+/**
+ * Renders any route broken down into dynamic, color-coded stretch segments.
+ * Only the specific blocked segment (e.g. C-D) is painted Red, while clear segments
+ * (e.g. A-B, B-C) remain Green and safe for sub-route transit.
  */
 export function RiskSegmentedRoute({
   routeCoordinates = [],
   riskScore = 0.2,
-  label = 'Transit Route',
+  conditions = [],
+  waypointAnalysis = [],
+  label = 'Transit Corridor Stretch',
   statusText = 'Active Dispatch',
-  originName = 'Origin Depot',
+  originName = 'Origin',
   destName = 'Destination',
+  interactive = true,
 }) {
   if (!routeCoordinates || routeCoordinates.length < 2) return null;
 
-  const division = getRiskDivision(riskScore);
+  // Break route into localized sub-segments
+  const segments = buildDynamicRouteSegments(routeCoordinates, conditions, waypointAnalysis, riskScore);
 
   return (
     <>
-      {/* Route Outline / Halo */}
-      <Polyline
-        positions={routeCoordinates}
-        pathOptions={{
-          color: '#ffffff',
-          weight: 8,
-          opacity: 0.85,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }}
-      />
+      {segments.map((seg) => {
+        const { division } = seg;
 
-      {/* Main 3-Tier Color Route */}
-      <Polyline
-        positions={routeCoordinates}
-        pathOptions={{
-          color: division.color,
-          weight: 6,
-          opacity: 0.95,
-          dashArray: division.dashArray,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }}
-      >
-        <Popup>
-          <div className="text-xs p-1 space-y-2" style={{ minWidth: '220px' }}>
-            <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-1.5">
-              <div>
-                <div className="font-extrabold text-slate-900 text-sm">{label}</div>
-                <div className="text-[10px] text-slate-500 font-medium">{originName} → {destName}</div>
-              </div>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border shrink-0 ${division.badgeBg}`}>
-                {division.percentage}% RISK
-              </span>
-            </div>
+        return (
+          <React.Fragment key={`seg-${seg.index}-${seg.startCoord[0]}-${seg.startCoord[1]}`}>
+            {/* White Background Halo for High Contrast */}
+            <Polyline
+              positions={seg.coordinates}
+              pathOptions={{
+                color: '#ffffff',
+                weight: 8,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
 
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${division.dotBg} ${division.key === 'critical' ? 'animate-pulse' : ''}`}></span>
-              <span className="font-extrabold text-slate-800">{division.label}</span>
-            </div>
+            {/* Stretch Segment Polyline in its specific tier color */}
+            <Polyline
+              positions={seg.coordinates}
+              pathOptions={{
+                color: division.color,
+                weight: 6,
+                opacity: 0.95,
+                dashArray: division.dashArray,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            >
+              {interactive && (
+                <Popup>
+                  <div className="text-xs p-1 space-y-2" style={{ minWidth: '230px' }}>
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-1.5">
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          Stretch #{seg.index}: {label}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          {seg.index === 1 ? originName : `Checkpoint ${seg.index}`} →{' '}
+                          {seg.index === segments.length ? destName : `Checkpoint ${seg.index + 1}`}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border shrink-0 ${division.badgeBg}`}
+                      >
+                        {division.percentage}% RISK
+                      </span>
+                    </div>
 
-            <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-              {division.description}
-            </p>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${division.dotBg} ${
+                          division.key === 'critical' ? 'animate-pulse' : ''
+                        }`}
+                      ></span>
+                      <span className="font-extrabold text-slate-800">{seg.statusLabel}</span>
+                    </div>
 
-            <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-100 font-semibold">
-              <span>Status: {statusText}</span>
-              <span className="font-bold text-slate-700">
-                {division.key === 'critical' ? '⚠️ Near-Blockage Alert' : division.key === 'warning' ? '⚡ High Delay Risk' : '✅ Optimal Corridor'}
-              </span>
-            </div>
-          </div>
-        </Popup>
-      </Polyline>
+                    <div
+                      className={`p-2 rounded text-[11px] font-medium leading-relaxed border ${
+                        division.key === 'critical'
+                          ? 'bg-red-50 border-red-200 text-red-800'
+                          : division.key === 'warning'
+                          ? 'bg-amber-50 border-amber-200 text-amber-800'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      }`}
+                    >
+                      {seg.hazard
+                        ? `🚨 Active Disruption: ${seg.hazard.condition_type?.replace('_', ' ').toUpperCase()} (${seg.hazard.value}) reported within ${seg.hazardDistanceKm < 1 ? Math.round(seg.hazardDistanceKm * 1000) + 'm' : seg.hazardDistanceKm.toFixed(1) + 'km'}. This specific stretch is obstructed.`
+                        : division.key === 'safe'
+                        ? '✅ This stretch of the roadway is fully CLEAR and unobstructed. Sub-route transit on this section is safe.'
+                        : '⚠️ Moderate terrain / slope caution on this stretch.'}
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-100 font-semibold">
+                      <span>Status: {statusText}</span>
+                      <span className="font-bold text-slate-700">
+                        {division.key === 'critical'
+                          ? '⚠️ Bypass Stretch'
+                          : division.key === 'warning'
+                          ? '⚡ Cautionary Transit'
+                          : '🟢 Open For Transit'}
+                      </span>
+                    </div>
+                  </div>
+                </Popup>
+              )}
+            </Polyline>
+          </React.Fragment>
+        );
+      })}
     </>
   );
 }

@@ -625,6 +625,7 @@ export default function TransportPortal() {
                         return (
                           <RiskSegmentedRoute
                             routeCoordinates={routePts}
+                            conditions={conditions}
                             riskScore={calculatedRisk}
                             label={`Transit Dispatch #${selectedAllocation.id}`}
                             statusText={selectedAllocation.delivery_status.replace('_', ' ').toUpperCase()}

@@ -8,6 +8,7 @@ import {
 import {
   RiskSegmentedRoute,
   getRiskDivision,
+  buildDynamicRouteSegments,
   NER_HIGHWAY_CORRIDORS,
 } from './RiskCorridorMapLayer';
 import MapLocationInspector from './MapLocationInspector';
@@ -388,6 +389,8 @@ export default function AiRiskAnalyzer({
                 {scopeMode === 'corridor' && (
                   <RiskSegmentedRoute
                     routeCoordinates={activeCorridor.path}
+                    conditions={conditions}
+                    waypointAnalysis={predictionResult?.waypoint_analysis || []}
                     riskScore={
                       predictionResult?.route_composite_risk !== undefined
                         ? predictionResult.route_composite_risk
@@ -551,6 +554,72 @@ export default function AiRiskAnalyzer({
               {predictionResult.explanation && (
                 <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-lg text-xs text-blue-900 font-medium leading-relaxed">
                   {predictionResult.explanation}
+                </div>
+              )}
+
+              {/* Corridor Sub-Stretch Transit Availability Breakdown */}
+              {scopeMode === 'corridor' && (
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-extrabold text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <Route className="w-3.5 h-3.5 text-primary-600" />
+                      <span>Section-By-Section Stretch Status (A → E Breakdown)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-semibold">Click stretch on map for details</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {buildDynamicRouteSegments(
+                      activeCorridor.path,
+                      conditions,
+                      predictionResult?.waypoint_analysis || [],
+                      predictionResult?.route_composite_risk || activeCorridor.baseRisk
+                    ).map((seg) => {
+                      const isClear = seg.division.key === 'safe';
+                      const isBlocked = seg.division.key === 'critical';
+                      const parts = activeCorridor.section.split('–').map((s) => s.trim());
+                      const segOrigin = parts[seg.index - 1] || `Checkpoint ${seg.index}`;
+                      const segDest = parts[seg.index] || `Checkpoint ${seg.index + 1}`;
+
+                      return (
+                        <div
+                          key={`sub-seg-${seg.index}`}
+                          className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 transition-all ${
+                            isBlocked
+                              ? 'bg-red-50/70 border-red-200 text-red-900'
+                              : isClear
+                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                              : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                          }`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-black flex items-center gap-1.5">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  isBlocked ? 'bg-red-600 animate-pulse' : isClear ? 'bg-emerald-600' : 'bg-amber-500'
+                                }`}
+                              />
+                              <span>
+                                Stretch #{seg.index}: {segOrigin} → {segDest}
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-medium opacity-90">
+                              {seg.hazard
+                                ? `🚨 Disruption: ${seg.hazard.value} at this sector`
+                                : isClear
+                                ? '✅ Open & Safe for Sub-Route Transit'
+                                : '⚠️ Cautionary Incline Section'}
+                            </div>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 ${seg.division.badgeBg}`}
+                          >
+                            {seg.division.shortLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

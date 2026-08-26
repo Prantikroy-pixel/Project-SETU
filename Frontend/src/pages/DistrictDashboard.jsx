@@ -604,6 +604,7 @@ export default function DistrictDashboard() {
                     {parsedRouteCoords.length >= 2 && (
                       <RiskSegmentedRoute
                         routeCoordinates={parsedRouteCoords}
+                        conditions={conditions}
                         riskScore={routeAnalysisResult?.crosses_border_buffer ? 0.78 : 0.22}
                         label="Audited Border Route"
                         statusText={routeAnalysisResult?.requires_ilp ? 'Requires ILP Clearance' : 'Standard Border Route'}
