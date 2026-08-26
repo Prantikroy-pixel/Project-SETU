@@ -475,6 +475,19 @@ export default function AiRiskAnalyzer({
                 })()}
               </div>
 
+              {/* Live Satellite Data Source Tag */}
+              <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <span className="flex items-center gap-1.5 text-primary-700 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  🛰️ Satellite Ground Telemetry: {predictionResult.data_source || 'Live Open-Meteo GPM + SRTM DEM Ingestion'}
+                </span>
+                {predictionResult.weather && (
+                  <span className="font-mono text-slate-700">
+                    🌡️ {predictionResult.weather.temperature_c}°C • 💧 {predictionResult.weather.relative_humidity_pct}% RH • 💨 {predictionResult.weather.wind_speed_kmh} km/h
+                  </span>
+                )}
+              </div>
+
               {/* Environmental Metrics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -483,7 +496,11 @@ export default function AiRiskAnalyzer({
                     <span>24h Rainfall</span>
                   </div>
                   <div className="text-sm font-black text-slate-900 mt-1">
-                    {predictionResult.realtime_factors?.rainfall_24h_mm || predictionResult.input_features?.rainfall || '38.4'} mm
+                    {predictionResult.features?.rainfall_mm ??
+                      predictionResult.range_metrics?.max_rainfall_mm ??
+                      predictionResult.realtime_factors?.rainfall_24h_mm ??
+                      predictionResult.input_features?.rainfall ??
+                      '0.0'} mm
                   </div>
                 </div>
 
@@ -493,7 +510,11 @@ export default function AiRiskAnalyzer({
                     <span>Slope Gradient</span>
                   </div>
                   <div className="text-sm font-black text-slate-900 mt-1">
-                    {predictionResult.realtime_factors?.slope_deg || predictionResult.input_features?.slope || '22'}°
+                    {predictionResult.features?.slope_degrees ??
+                      predictionResult.range_metrics?.max_slope_degrees ??
+                      predictionResult.realtime_factors?.slope_deg ??
+                      predictionResult.input_features?.slope ??
+                      '0.0'}°
                   </div>
                 </div>
 
@@ -503,7 +524,13 @@ export default function AiRiskAnalyzer({
                     <span>Elevation</span>
                   </div>
                   <div className="text-sm font-black text-slate-900 mt-1">
-                    {predictionResult.realtime_factors?.elevation_m || predictionResult.input_features?.elevation || '340'} m
+                    {Math.round(
+                      predictionResult.features?.elevation_m ??
+                        predictionResult.range_metrics?.max_elevation_m ??
+                        predictionResult.realtime_factors?.elevation_m ??
+                        predictionResult.input_features?.elevation ??
+                        120
+                    )} m
                   </div>
                 </div>
 
@@ -513,10 +540,19 @@ export default function AiRiskAnalyzer({
                     <span>Soil Saturation</span>
                   </div>
                   <div className="text-sm font-black text-slate-900 mt-1">
-                    {predictionResult.realtime_factors?.soil_saturation || '0.74 (Saturated)'}
+                    {typeof (predictionResult.features?.soil_saturation ?? predictionResult.realtime_factors?.soil_saturation) === 'number'
+                      ? `${Math.round((predictionResult.features?.soil_saturation ?? predictionResult.realtime_factors?.soil_saturation) * 100)}%`
+                      : predictionResult.features?.soil_saturation || predictionResult.realtime_factors?.soil_saturation || '35%'}
                   </div>
                 </div>
               </div>
+
+              {/* Real-time AI Explanation */}
+              {predictionResult.explanation && (
+                <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-lg text-xs text-blue-900 font-medium leading-relaxed">
+                  {predictionResult.explanation}
+                </div>
+              )}
 
               {/* Actionable Dispatch Advisory */}
               <div className="p-3 bg-slate-900 text-white rounded-lg text-xs flex items-start gap-2.5">

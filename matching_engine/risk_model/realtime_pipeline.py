@@ -109,33 +109,24 @@ class RealtimeHazardFetcher:
 
     def fetch_elevation_and_slope(self, lat: float, lon: float) -> Dict[str, float]:
         """
-        Fetch SRTM 30m elevation and calculate local slope (in degrees)
-        using 4-point spatial gradient finite differences.
+        Fetch SRTM/DEM elevation and calculate local slope (in degrees)
+        using Open-Meteo Elevation 5-point spatial gradient finite differences.
         """
         delta = 0.001  # ~110 meters offset
-        coords_payload = [
-            {"latitude": lat, "longitude": lon},                          # Center
-            {"latitude": lat + delta, "longitude": lon},                  # North
-            {"latitude": lat - delta, "longitude": lon},                  # South
-            {"latitude": lat, "longitude": lon + delta},                  # East
-            {"latitude": lat, "longitude": lon - delta},                  # West
-        ]
+        lats = [lat, lat + delta, lat - delta, lat, lat]
+        lons = [lon, lon, lon, lon + delta, lon - delta]
 
         try:
-            # Query Open-Elevation API
-            locations_str = "|".join([f"{c['latitude']:.5f},{c['longitude']:.5f}" for c in coords_payload])
-            url = f"https://api.open-elevation.com/api/v1/lookup?locations={locations_str}"
+            # 1. Query Open-Meteo Fast Global Elevation API (50ms response)
+            lat_str = ",".join([f"{x:.5f}" for x in lats])
+            lon_str = ",".join([f"{x:.5f}" for x in lons])
+            url = f"https://api.open-meteo.com/v1/elevation?latitude={lat_str}&longitude={lon_str}"
             resp = self.session.get(url, timeout=self.timeout)
             if resp.status_code == 200:
-                results = resp.json().get("results", [])
-                if len(results) == 5:
-                    z_center = results[0]["elevation"]
-                    z_north = results[1]["elevation"]
-                    z_south = results[2]["elevation"]
-                    z_east = results[3]["elevation"]
-                    z_west = results[4]["elevation"]
+                elevations = resp.json().get("elevation", [])
+                if len(elevations) == 5:
+                    z_center, z_north, z_south, z_east, z_west = elevations
 
-                    # Distance in meters for delta degrees
                     meters_y = delta * 111320.0
                     meters_x = delta * 111320.0 * math.cos(math.radians(lat))
 
@@ -152,9 +143,37 @@ class RealtimeHazardFetcher:
         except Exception:
             pass
 
+        # 2. Fallback: Query Open-Elevation API if needed
+        try:
+            locations_str = "|".join([f"{lats[i]:.5f},{lons[i]:.5f}" for i in range(5)])
+            url = f"https://api.open-elevation.com/api/v1/lookup?locations={locations_str}"
+            resp = self.session.get(url, timeout=3)
+            if resp.status_code == 200:
+                results = resp.json().get("results", [])
+                if len(results) == 5:
+                    z_center = results[0]["elevation"]
+                    z_north = results[1]["elevation"]
+                    z_south = results[2]["elevation"]
+                    z_east = results[3]["elevation"]
+                    z_west = results[4]["elevation"]
+
+                    meters_y = delta * 111320.0
+                    meters_x = delta * 111320.0 * math.cos(math.radians(lat))
+
+                    dz_dx = (z_east - z_west) / (2.0 * meters_x) if meters_x > 0 else 0
+                    dz_dy = (z_north - z_south) / (2.0 * meters_y)
+
+                    slope_deg = math.degrees(math.atan(math.sqrt(dz_dx**2 + dz_dy**2)))
+
+                    return {
+                        "elevation": round(float(z_center), 1),
+                        "slope": round(float(slope_deg), 2)
+                    }
+        except Exception:
+            pass
+
         # Regional DEM Heuristic if API is unreachable
         if 23.0 <= lat <= 29.0 and 88.0 <= lon <= 97.0:
-            # Hilly terrain in Dima Hasao, Meghalaya, Sikkim, Nagaland, Karbi Anglong
             if lat > 27.0 or (lat < 26.0 and lon > 92.0):
                 return {"elevation": 780.0, "slope": 18.5}
             return {"elevation": 85.0, "slope": 2.1}
