@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { resourceAPI, matchAPI, districtAPI, conditionAPI } from '../api';
-import { RiskCorridorMapLayer, RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
+import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import { AlertCircle, CheckCircle, Package, PlusCircle, MapPin, Eye, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -282,8 +284,8 @@ export default function NgoPortal() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              {/* 3-Tier Regional Risk Highway Corridor Layer */}
-              <RiskCorridorMapLayer conditions={conditions} />
+              {/* Real-time Color-Coded Incident Impact Area Layer */}
+              <IncidentImpactZoneLayer conditions={conditions} />
 
               <MapClickHandler onMapClick={handleMapClick} />
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { vehicleAPI, allocationAPI, conditionAPI } from '../api';
-import { RiskCorridorMapLayer, RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
+import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import { AlertCircle, CheckCircle, Truck, Play, RefreshCw, MapPin, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import L from 'leaflet';
@@ -425,8 +427,8 @@ export default function TransportPortal() {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
 
-                    {/* Regional 3-Tier Risk Highway Layer */}
-                    <RiskCorridorMapLayer conditions={conditions} />
+                    {/* Real-time Color-Coded Incident Impact Area Layer */}
+                    <IncidentImpactZoneLayer conditions={conditions} />
 
                     {/* 3-Tier Color Coded Dispatch Route */}
                     {(() => {

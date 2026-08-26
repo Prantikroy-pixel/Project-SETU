@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { useAuth } from '../context/AuthContext';
 import { needAPI, alertAPI, conditionAPI, districtAPI } from '../api';
-import { RiskCorridorMapLayer, RiskLegendControl } from '../components/RiskCorridorMapLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import MapLocationInspector from '../components/MapLocationInspector';
 import { AlertCircle, PlusCircle, CheckCircle, MapPin, Radio, Eye } from 'lucide-react';
 import L from 'leaflet';
@@ -163,6 +164,12 @@ export default function CitizenPortal() {
           </p>
         </div>
       </div>
+
+      {/* Real-time Live Telemetry Banner */}
+      <RealtimeTelemetryBanner
+        conditions={hazards}
+        districtName={districts[0]?.name || 'Barak Valley / Assam'}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* left column: submit request */}
@@ -340,20 +347,20 @@ export default function CitizenPortal() {
 
         {/* middle column: Live map */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[520px]">
+            <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <h2 className="text-base font-bold text-slate-900 flex items-center space-x-2">
                 <MapPin className="h-5 w-5 text-primary-600" />
-                <span>Live Accessibility & Needs Map</span>
+                <span>Live Affected Road Zones & Accessibility Map</span>
               </h2>
-              <div className="flex items-center space-x-4 text-xs font-semibold">
+              <div className="flex items-center space-x-3 text-xs font-semibold">
                 <span className="flex items-center space-x-1">
-                  <span className="w-3.5 h-3.5 bg-red-500 rounded-full inline-block"></span>
-                  <span className="text-slate-600">Road Blockage</span>
+                  <span className="w-2.5 h-2.5 bg-red-500 rounded-full inline-block animate-pulse"></span>
+                  <span className="text-slate-600">Disruption Zones ({hazards.length})</span>
                 </span>
                 <span className="flex items-center space-x-1">
-                  <span className="w-3.5 h-3.5 bg-orange-400 rounded-full inline-block"></span>
-                  <span className="text-slate-600">Urgent Needs</span>
+                  <span className="w-2.5 h-2.5 bg-orange-400 rounded-full inline-block"></span>
+                  <span className="text-slate-600">Urgent Demands ({needs.length})</span>
                 </span>
               </div>
             </div>
@@ -369,30 +376,20 @@ export default function CitizenPortal() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {/* 3-Tier Regional Risk Corridor Paths Layer */}
-                <RiskCorridorMapLayer conditions={hazards} />
+                {/* Real-time Color-Coded Incident Impact Area Layer */}
+                <IncidentImpactZoneLayer
+                  conditions={hazards}
+                  previewLocation={{
+                    lat: form.latitude,
+                    lon: form.longitude,
+                    risk_score: 0.5,
+                    value: form.type,
+                    condition_type: 'relief_demand',
+                    radiusMeters: 800,
+                  }}
+                />
 
                 <MapLocationInspector onLocationSelected={({ lat, lon }) => handleMapClick(lat, lon)} />
-                
-                {/* Hazards Markers */}
-                {hazards.map((h) => {
-                  const lat = h.location?.latitude || h.latitude;
-                  const lon = h.location?.longitude || h.longitude;
-                  if (!lat || !lon) return null;
-                  return (
-                    <Marker key={`hazard-${h.id}`} position={[lat, lon]} icon={hazardIcon}>
-                      <Popup>
-                        <div className="text-xs p-1">
-                          <div className="font-bold text-red-600 mb-1">ROAD DISRUPTION</div>
-                          <div><strong>Type:</strong> {h.condition_type}</div>
-                          <div><strong>Status:</strong> {h.value}</div>
-                          {h.risk_score && <div><strong>AI Risk:</strong> {Math.round(h.risk_score * 100)}%</div>}
-                          <div className="mt-1 text-[10px] text-slate-400">Reported at {new Date(h.reported_at).toLocaleTimeString()}</div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  );
-                })}
 
                 {/* Open Needs Markers */}
                 {needs.map((n) => {
@@ -415,8 +412,8 @@ export default function CitizenPortal() {
                 })}
               </MapContainer>
 
-              {/* 3-Tier Corridor Risk Divisions Legend */}
-              <RiskLegendControl compact={true} className="absolute bottom-2 right-2 shadow-md" />
+              {/* Real-time Incident Severity Legend */}
+              <IncidentSeverityLegend totalIncidents={hazards.length} className="absolute bottom-2 right-2 shadow-md" />
             </div>
           </div>
 

@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// When VITE_API_URL is empty, use '' so Vite's dev proxy intercepts /api/* calls
-// In production, set VITE_API_URL=https://api.setu.in (or your deployed backend)
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// When VITE_API_URL is empty, use '' in dev so Vite's dev proxy intercepts /api/* calls
+// In production, fallback to the deployed Vercel backend URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://setu-backend-tau.vercel.app');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

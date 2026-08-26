@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { conditionAPI, districtAPI } from '../api';
 import {
-  RiskCorridorMapLayer,
-  RiskLegendControl,
+  IncidentImpactZoneLayer,
+  IncidentSeverityLegend,
+  getIncidentSeverity,
+} from '../components/IncidentImpactZoneLayer';
+import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
+import {
   RiskSegmentedRoute,
   getRiskDivision,
   NER_HIGHWAY_CORRIDORS,
@@ -24,6 +28,7 @@ import {
   Navigation,
   ChevronRight,
   Layers,
+  Radio,
 } from 'lucide-react';
 import L from 'leaflet';
 
@@ -46,14 +51,16 @@ export default function FieldOfficerPortal() {
   const [reportForm, setReportForm] = useState({
     condition_type: 'road_status',
     value: 'blocked',
-    latitude: 24.83,
-    longitude: 92.78,
+    latitude: 24.8333,
+    longitude: 92.7789,
     district: '',
-    risk_score: '',
+    risk_score: '0.85',
+    radius_meters: 1400,
   });
   const [reportFile, setReportFile] = useState(null);
   const [reportMsg, setReportMsg] = useState({ text: '', type: '' });
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [isRefreshingTelemetry, setIsRefreshingTelemetry] = useState(false);
 
   // AI Predictor States
   const [predictMode, setPredictMode] = useState('route'); // 'route' (corridor range) or 'single' (point)
@@ -78,20 +85,27 @@ export default function FieldOfficerPortal() {
   const [predictStep, setPredictStep] = useState('');
   const [predictResult, setPredictResult] = useState(null);
 
-  useEffect(() => {
-    const loadDistrictsAndConditions = async () => {
-      try {
-        const data = await districtAPI.list();
-        setDistricts(data.results || data || []);
+  const fetchConditionsAndDistricts = useCallback(async () => {
+    setIsRefreshingTelemetry(true);
+    try {
+      const data = await districtAPI.list();
+      setDistricts(data.results || data || []);
 
-        const cData = await conditionAPI.list();
-        setConditions(cData.results || cData || []);
-      } catch (err) {
-        console.error('Failed to load districts/conditions', err);
-      }
-    };
-    loadDistrictsAndConditions();
+      const cData = await conditionAPI.list();
+      setConditions(cData.results || cData || []);
+    } catch (err) {
+      console.error('Failed to load districts/conditions', err);
+    } finally {
+      setIsRefreshingTelemetry(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchConditionsAndDistricts();
+    // Real-time polling every 25 seconds
+    const interval = setInterval(fetchConditionsAndDistricts, 25000);
+    return () => clearInterval(interval);
+  }, [fetchConditionsAndDistricts]);
 
   const handleReportChange = (e) => {
     setReportForm({ ...reportForm, [e.target.name]: e.target.value });
@@ -118,7 +132,7 @@ export default function FieldOfficerPortal() {
     try {
       const payload = {
         ...reportForm,
-        risk_score: reportForm.risk_score ? parseFloat(reportForm.risk_score) : null,
+        risk_score: reportForm.risk_score ? parseFloat(reportForm.risk_score) : 0.85,
         district: reportForm.district ? parseInt(reportForm.district, 10) : null,
       };
 
@@ -130,14 +144,29 @@ export default function FieldOfficerPortal() {
         await conditionAPI.uploadAttachment(condition.id, reportFile, 'photo');
       }
 
-      setReportMsg({ text: 'Ground condition reported successfully. Downstream alert cascades triggered.', type: 'success' });
+      // Immediately show the new colored affected zone on the live map
+      const districtObj = districts.find((d) => d.id === parseInt(reportForm.district, 10));
+      const enrichedCondition = {
+        ...condition,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        risk_score: payload.risk_score,
+        condition_type: payload.condition_type,
+        value: payload.value,
+        district_name: districtObj?.name || 'Local Sector',
+        reported_at: new Date().toISOString(),
+      };
+      setConditions((prev) => [enrichedCondition, ...prev]);
+
+      setReportMsg({ text: 'Ground condition reported successfully! Impact zone color-marked on live map.', type: 'success' });
       setReportForm({
         condition_type: 'road_status',
         value: 'blocked',
-        latitude: 24.83,
-        longitude: 92.78,
+        latitude: 24.8333,
+        longitude: 92.7789,
         district: '',
-        risk_score: '',
+        risk_score: '0.85',
+        radius_meters: 1400,
       });
       setReportFile(null);
     } catch (err) {
@@ -310,6 +339,14 @@ export default function FieldOfficerPortal() {
         </div>
       </div>
 
+      {/* Real-Time Live Telemetry Bar */}
+      <RealtimeTelemetryBanner
+        conditions={conditions}
+        districtName={districts[0]?.name || 'Cachar / Barak Valley'}
+        onRefresh={fetchConditionsAndDistricts}
+        isRefreshing={isRefreshingTelemetry}
+      />
+
       {activeTab === 'report' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Form */}
@@ -414,6 +451,35 @@ export default function FieldOfficerPortal() {
                   </div>
                 </div>
 
+                {/* Impact Area Radius Buffer Selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                    Affected Impact Area Radius
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs">
+                    {[
+                      { label: '500m', value: 500, desc: 'Spot Hazard' },
+                      { label: '1.0 km', value: 1000, desc: 'Road Stretch' },
+                      { label: '1.5 km', value: 1400, desc: 'Pass / Valley' },
+                      { label: '2.5 km', value: 2500, desc: 'Wide Flood' },
+                    ].map((rad) => (
+                      <button
+                        key={rad.value}
+                        type="button"
+                        onClick={() => setReportForm({ ...reportForm, radius_meters: rad.value })}
+                        className={`p-1.5 rounded-lg border text-center font-bold transition-all cursor-pointer ${
+                          reportForm.radius_meters === rad.value
+                            ? 'bg-primary text-white border-primary shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div>{rad.label}</div>
+                        <div className="text-[9px] opacity-80 font-normal">{rad.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                     Coordinates (Click Map to autofill)
@@ -454,9 +520,10 @@ export default function FieldOfficerPortal() {
                 <button
                   type="submit"
                   disabled={reportSubmitting}
-                  className="w-full py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase text-xs rounded-md shadow-md transition-all cursor-pointer disabled:opacity-50 tracking-wider mt-2"
+                  className="w-full py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase text-xs rounded-md shadow-md transition-all cursor-pointer disabled:opacity-50 tracking-wider mt-2 flex items-center justify-center gap-2"
                 >
-                  {reportSubmitting ? 'Submitting...' : 'Log Condition & Broadcast'}
+                  <Radio className="w-4 h-4 text-white animate-pulse" />
+                  <span>{reportSubmitting ? 'Submitting...' : 'Log Condition & Broadcast Live Zone'}</span>
                 </button>
               </form>
             </div>
@@ -464,28 +531,47 @@ export default function FieldOfficerPortal() {
 
           {/* Map */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden h-[480px]">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden h-[540px]">
+              <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-900 flex items-center space-x-2">
                   <MapPin className="h-5 w-5 text-primary-600" />
-                  <span>Interactive Reporter Map</span>
+                  <span>Live Affected Impact Zone Map</span>
                 </h2>
-                <span className="text-xs text-slate-400 font-semibold italic">Click map to target incident location</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+                    {conditions.length} Active Zones
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold italic hidden sm:inline">Click map to target incident</span>
+                </div>
               </div>
-              <div className="w-full h-full relative" style={{ height: 'calc(100% - 60px)' }}>
-                <MapContainer center={[24.83, 92.78]} zoom={10} className="w-full h-full">
+              <div className="w-full h-full relative" style={{ height: 'calc(100% - 55px)' }}>
+                <MapContainer center={[24.8333, 92.7789]} zoom={11} className="w-full h-full">
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  {/* 3-Tier Regional Risk Corridor Lifeline Paths Layer */}
-                  <RiskCorridorMapLayer conditions={conditions} />
+                  {/* Real-time Color-Coded Incident Impact Area Layer */}
+                  <IncidentImpactZoneLayer
+                    conditions={conditions}
+                    previewLocation={{
+                      lat: reportForm.latitude,
+                      lon: reportForm.longitude,
+                      risk_score: reportForm.risk_score ? parseFloat(reportForm.risk_score) : (reportForm.value === 'blocked' ? 0.88 : 0.55),
+                      value: reportForm.value,
+                      condition_type: reportForm.condition_type,
+                      radiusMeters: reportForm.radius_meters || 1400,
+                    }}
+                  />
 
                   <MapLocationInspector onLocationSelected={({ lat, lon }) => handleReportMapClick(lat, lon)} />
                 </MapContainer>
 
-                {/* 3-Tier Corridor Risk Divisions Legend */}
-                <RiskLegendControl compact={true} className="absolute bottom-2 right-2 shadow-md" />
+                {/* Real-Time Severity Divisions Legend */}
+                <IncidentSeverityLegend
+                  totalIncidents={conditions.length}
+                  className="absolute bottom-3 right-3 shadow-xl"
+                />
               </div>
             </div>
           </div>
@@ -732,8 +818,8 @@ export default function FieldOfficerPortal() {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
 
-                    {/* 3-Tier Regional Risk Highway Corridor Layer */}
-                    <RiskCorridorMapLayer conditions={conditions} />
+                    {/* Real-time Color-Coded Incident Impact Area Layer */}
+                    <IncidentImpactZoneLayer conditions={conditions} />
 
                     {predictMode === 'route' ? (
                       <MapClickHandler onMapClick={handleAiMapClick} />
@@ -756,8 +842,11 @@ export default function FieldOfficerPortal() {
                     )}
                   </MapContainer>
 
-                  {/* 3-Tier Corridor Risk Divisions Legend */}
-                  <RiskLegendControl compact={true} className="absolute bottom-2 right-2 shadow-md" />
+                  {/* Real-Time Severity Divisions Legend */}
+                  <IncidentSeverityLegend
+                    totalIncidents={conditions.length}
+                    className="absolute bottom-2 right-2 shadow-md"
+                  />
                 </div>
               </div>
             )}
@@ -906,8 +995,8 @@ export default function FieldOfficerPortal() {
                           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
 
-                        {/* Background Corridors */}
-                        <RiskCorridorMapLayer conditions={conditions} />
+                        {/* Real-time Color-Coded Incident Impact Area Layer */}
+                        <IncidentImpactZoneLayer conditions={conditions} />
 
                         {/* Evaluated Route with 3-Tier Risk Divisions */}
                         <RiskSegmentedRoute

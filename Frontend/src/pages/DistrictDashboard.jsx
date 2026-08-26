@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { dashboardAPI, needAPI, vehicleAPI, matchAPI, boundaryAPI, authAPI, resourceAPI, conditionAPI } from '../api';
-import { RiskCorridorMapLayer, RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
+import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import MapLocationInspector from '../components/MapLocationInspector';
 import {
   Activity,
@@ -541,15 +543,22 @@ export default function DistrictDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left 8 Columns */}
             <div className="lg:col-span-8 flex flex-col gap-5">
+              {/* Live Real-time Telemetry Banner */}
+              <RealtimeTelemetryBanner
+                conditions={conditions}
+                districtName="NER Strategic Command"
+                onRefresh={fetchDashboardData}
+              />
+
               {/* Tactical GIS Map Box */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col h-[420px]">
+              <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col h-[460px]">
                 <div className="flex justify-between items-center mb-2">
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
                       <Globe className="w-4 h-4 text-slate-700" />
-                      <span>Tactical GIS Map</span>
+                      <span>Live Affected Impact Zone & Tactical GIS Map</span>
                     </h2>
-                    <p className="text-[11px] text-slate-500">NER District Centroids & Checkpoints</p>
+                    <p className="text-[11px] text-slate-500">Real-time color-marked incident zones & border checkpoints</p>
                   </div>
                   <button
                     onClick={handleSyncBoundaries}
@@ -568,8 +577,8 @@ export default function DistrictDashboard() {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
 
-                    {/* 3-Tier Risk Corridor Lifeline Paths Layer */}
-                    <RiskCorridorMapLayer conditions={conditions} />
+                    {/* Real-time Color-Coded Incident Impact Area Layer */}
+                    <IncidentImpactZoneLayer conditions={conditions} />
 
                     {/* Interactive Real-Time Map Location & AI Hazard Inspector */}
                     <MapLocationInspector />
@@ -638,8 +647,8 @@ export default function DistrictDashboard() {
                     })}
                   </MapContainer>
 
-                  {/* 3-Tier Corridor Risk Divisions Legend */}
-                  <RiskLegendControl className="absolute bottom-3 right-3 shadow-md" />
+                  {/* Real-Time Incident Severity Legend */}
+                  <IncidentSeverityLegend totalIncidents={conditions.length} className="absolute bottom-3 right-3 shadow-xl" />
                 </div>
               </div>
 
