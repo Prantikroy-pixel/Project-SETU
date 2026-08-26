@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { vehicleAPI, allocationAPI, conditionAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import { AlertCircle, CheckCircle, Truck, Play, RefreshCw, MapPin, Eye } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+
 // Custom dynamic moving cargo marker icon
 const liveCargoMarkerIcon = new L.DivIcon({
   className: 'live-cargo-gps-pin',
