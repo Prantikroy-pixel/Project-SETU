@@ -287,6 +287,11 @@ if cors_origins_env:
 else:
     CORS_ALLOWED_ORIGINS = _DEFAULT_ALLOWED_ORIGINS
 
+# Automatically permit all Vercel production and preview deployment domains
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HTTP Security Response Headers (SEC-009)
 # ─────────────────────────────────────────────────────────────────────────────
