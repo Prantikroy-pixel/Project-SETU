@@ -6,6 +6,7 @@ import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/I
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import MapLocationInspector from '../components/MapLocationInspector';
+import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
   Activity,
   Building,
@@ -21,6 +22,7 @@ import {
   RefreshCw,
   TrendingUp,
   Heart,
+  Cpu,
 } from 'lucide-react';
 import L from 'leaflet';
 
@@ -386,6 +388,21 @@ export default function DistrictDashboard() {
         >
           <Activity className="w-3.5 h-3.5 text-slate-700" />
           <span>Command Overview</span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('ai_risk')}
+          className={`font-semibold text-xs py-1.5 px-3.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'ai_risk'
+              ? 'bg-white text-slate-900 shadow-sm font-bold border border-slate-200/80'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Cpu className="w-3.5 h-3.5 text-primary-600" />
+          <span>AI Risk Analyzer</span>
+          <span className="bg-primary-100 text-primary-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+            ML
+          </span>
         </button>
 
         <button
@@ -1496,6 +1513,15 @@ export default function DistrictDashboard() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* AI Risk Analyzer Tab View */}
+      {activeTab === 'ai_risk' && (
+        <AiRiskAnalyzer
+          conditions={conditions}
+          title="District Command AI Risk Analyzer"
+          subtitle="Real-time geoclimatic hazard prediction, road corridor threat assessment, and nearest point analysis."
+        />
       )}
     </div>
   );
