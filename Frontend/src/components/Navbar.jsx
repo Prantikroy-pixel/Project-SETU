@@ -56,15 +56,15 @@ export default function Navbar() {
           {/* Logo & Main Nav Links */}
           <div className="flex items-center space-x-6">
             <div
-              className="flex items-center space-x-2 text-slate-900 cursor-pointer group"
+              className="flex items-center space-x-2.5 text-slate-900 cursor-pointer group"
               onClick={() => navigate('/')}
             >
-              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-black shadow-sm group-hover:scale-105 transition-transform">
-                <Compass className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-xl bg-slate-900 p-1 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform overflow-hidden border border-slate-700/40">
+                <img src="/Setu_logo.png" alt="SETU Logo" className="w-full h-full object-contain rounded-lg" />
               </div>
               <div>
-                <span className="text-base font-black tracking-tight leading-none block">SETU</span>
-                <span className="text-[9px] uppercase tracking-widest font-bold text-slate-500 block leading-none mt-0.5">
+                <span className="text-base font-black tracking-tight leading-none block text-slate-900">SETU</span>
+                <span className="text-[9px] uppercase tracking-widest font-extrabold text-primary-700 block leading-none mt-0.5">
                   Command Portal
                 </span>
               </div>

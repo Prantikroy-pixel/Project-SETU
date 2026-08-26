@@ -47,8 +47,8 @@ export default function Login() {
         <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary-container/10 rounded-full blur-2xl pointer-events-none"></div>
 
         <div className="flex flex-col items-center text-center">
-          <div className="w-14 h-14 bg-primary text-on-primary rounded-xl flex items-center justify-center font-headline-lg font-bold shadow-md mb-3">
-            S
+          <div className="w-16 h-16 bg-slate-900 rounded-2xl p-1.5 flex items-center justify-center shadow-lg mb-3 border border-slate-700/50">
+            <img src="/Setu_logo.png" alt="SETU Logo" className="w-full h-full object-contain rounded-xl" />
           </div>
           <h2 className="text-headline-md font-headline-md text-on-surface uppercase tracking-widest">SETU</h2>
           <p className="mt-1 text-body-sm text-on-surface-variant">
