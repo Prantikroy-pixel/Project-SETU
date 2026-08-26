@@ -59,9 +59,11 @@ export default function Navbar() {
               className="flex items-center space-x-2.5 text-slate-900 cursor-pointer group"
               onClick={() => navigate('/')}
             >
-              <div className="w-9 h-9 rounded-xl bg-slate-900 p-1 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform overflow-hidden border border-slate-700/40">
-                <img src="/Setu_logo.png" alt="SETU Logo" className="w-full h-full object-contain rounded-lg" />
-              </div>
+              <img
+                src="/Setu_logo.png"
+                alt="SETU Logo"
+                className="h-10 w-10 object-contain rounded-xl shadow-xs group-hover:scale-105 transition-transform"
+              />
               <div>
                 <span className="text-base font-black tracking-tight leading-none block text-slate-900">SETU</span>
                 <span className="text-[9px] uppercase tracking-widest font-extrabold text-primary-700 block leading-none mt-0.5">

@@ -114,9 +114,11 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-command-bg-start to-command-bg-end py-12 px-4 sm:px-6 lg:px-8 font-body-md">
       <div className="max-w-lg w-full space-y-8 bg-surface-container-lowest p-8 rounded-xl shadow-lg border border-outline-variant/30 relative overflow-hidden">
         <div className="flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-slate-900 rounded-2xl p-1.5 flex items-center justify-center font-headline-lg font-bold shadow-lg mb-3 border border-slate-700/50">
-            <img src="/Setu_logo.png" alt="SETU Logo" className="w-full h-full object-contain rounded-xl" />
-          </div>
+          <img
+            src="/Setu_logo.png"
+            alt="SETU Logo"
+            className="w-20 h-20 object-contain rounded-2xl shadow-md mb-3 hover:scale-105 transition-transform"
+          />
           <h2 className="text-headline-md font-headline-md text-on-surface uppercase tracking-widest">Register Account</h2>
           <p className="mt-1 text-body-sm text-on-surface-variant">
             Create an official profile for SETU Strategic Command System
