@@ -565,7 +565,10 @@ export default function FieldOfficerPortal() {
                     }}
                   />
 
-                  <MapLocationInspector onLocationSelected={({ lat, lon }) => handleReportMapClick(lat, lon)} />
+                  <MapLocationInspector
+                    conditions={conditions}
+                    onLocationSelected={({ lat, lon }) => handleReportMapClick(lat, lon)}
+                  />
                 </MapContainer>
 
                 {/* Real-Time Severity Divisions Legend */}

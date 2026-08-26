@@ -65,7 +65,12 @@ const inspectorIcon = new L.DivIcon({
   popupAnchor: [0, -14],
 });
 
-export default function MapLocationInspector({ onLocationSelected, autoFly = true, showDetailedPopup = true }) {
+export default function MapLocationInspector({
+  conditions = [],
+  onLocationSelected,
+  autoFly = true,
+  showDetailedPopup = true,
+}) {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [loading, setLoading] = useState(false);
   const [address, setAddress] = useState(null);
@@ -146,10 +151,54 @@ export default function MapLocationInspector({ onLocationSelected, autoFly = tru
           use_realtime: true,
         });
 
-        const [addrResult, hazardResult] = await Promise.all([geocodePromise, hazardPromise]);
+        const [addrResult, rawHazardResult] = await Promise.all([geocodePromise, hazardPromise]);
+
+        // C. Cross-reference with active ground incidents in conditions
+        let finalHazard = { ...rawHazardResult };
+        let nearbyIncident = null;
+        let minIncidentDistKm = Infinity;
+
+        if (Array.isArray(conditions) && conditions.length > 0) {
+          for (const cond of conditions) {
+            const cLat = cond.location?.latitude || cond.latitude;
+            const cLon = cond.location?.longitude || cond.longitude;
+            if (cLat && cLon) {
+              const dLat = (cLat - lat) * 111.0;
+              const dLon = (cLon - lon) * 111.0 * Math.cos((lat * Math.PI) / 180);
+              const distKm = Math.sqrt(dLat * dLat + dLon * dLon);
+              const impactRadiusKm = (cond.radius_meters || 1400) / 1000.0;
+
+              if (distKm <= Math.max(impactRadiusKm, 2.0) && distKm < minIncidentDistKm) {
+                minIncidentDistKm = distKm;
+                nearbyIncident = cond;
+              }
+            }
+          }
+        }
+
+        if (nearbyIncident) {
+          const incSeverity = (nearbyIncident.value || nearbyIncident.condition_type || '').toLowerCase();
+          const isCriticalBlock = incSeverity.includes('block') || incSeverity.includes('landslide') || incSeverity.includes('closed') || incSeverity.includes('impassable');
+          const isFlood = incSeverity.includes('flood') || incSeverity.includes('inundat');
+          const incidentRisk = isCriticalBlock ? 0.88 : isFlood ? 0.72 : (nearbyIncident.risk_score || 0.65);
+
+          finalHazard.risk_score = Math.max(finalHazard.risk_score || 0, incidentRisk);
+          finalHazard.is_critical = finalHazard.risk_score >= 0.7;
+          finalHazard.risk_level = finalHazard.risk_score >= 0.7 ? 'critical' : 'high';
+          finalHazard.explanation = `🚨 Active Ground Obstruction Detected: ${nearbyIncident.condition_type?.replace('_', ' ').toUpperCase()} (${nearbyIncident.value}) logged within ${minIncidentDistKm < 1 ? Math.round(minIncidentDistKm * 1000) + 'm' : minIncidentDistKm.toFixed(1) + 'km'}. Corridor access is restricted.`;
+        } else if ((finalHazard.risk_score || 0) < 0.25) {
+          // Terrain sensitivity: Check slope and elevation
+          const slope = finalHazard.features?.slope_degrees || 0;
+          const elev = finalHazard.features?.elevation_m || 0;
+          if (slope > 18 || elev > 700) {
+            finalHazard.risk_score = Math.max(finalHazard.risk_score || 0, 0.45);
+            finalHazard.risk_level = 'moderate';
+            finalHazard.explanation = `Moderate hazard due to steep topography (${slope.toFixed(1)}° slope at ${Math.round(elev)}m elevation). Watch for seasonal rockfall.`;
+          }
+        }
 
         setAddress(addrResult);
-        setHazardData(hazardResult);
+        setHazardData(finalHazard);
 
         // Notify parent handler if requested
         if (onLocationSelected) {
@@ -157,7 +206,7 @@ export default function MapLocationInspector({ onLocationSelected, autoFly = tru
             lat,
             lon,
             address: addrResult,
-            hazard: hazardResult,
+            hazard: finalHazard,
           });
         }
       } catch (err) {

@@ -403,7 +403,7 @@ export default function AiRiskAnalyzer({
                 {/* Scope: Single Point - Render Point Marker and Buffer */}
                 {scopeMode === 'single' && (
                   <>
-                    <MapLocationInspector onLocationSelected={handleMapPointSelect} />
+                    <MapLocationInspector conditions={conditions} onLocationSelected={handleMapPointSelect} />
                     <Marker position={[pointForm.latitude, pointForm.longitude]}>
                       <Popup>
                         <div className="text-xs p-1">

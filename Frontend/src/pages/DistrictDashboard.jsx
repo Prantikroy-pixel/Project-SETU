@@ -598,7 +598,7 @@ export default function DistrictDashboard() {
                     <IncidentImpactZoneLayer conditions={conditions} />
 
                     {/* Interactive Real-Time Map Location & AI Hazard Inspector */}
-                    <MapLocationInspector />
+                    <MapLocationInspector conditions={conditions} />
 
                     {/* Audited Route Paths if present */}
                     {parsedRouteCoords.length >= 2 && (

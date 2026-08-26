@@ -389,7 +389,10 @@ export default function CitizenPortal() {
                   }}
                 />
 
-                <MapLocationInspector onLocationSelected={({ lat, lon }) => handleMapClick(lat, lon)} />
+                <MapLocationInspector
+                  conditions={hazards}
+                  onLocationSelected={({ lat, lon }) => handleMapClick(lat, lon)}
+                />
 
                 {/* Open Needs Markers */}
                 {needs.map((n) => {

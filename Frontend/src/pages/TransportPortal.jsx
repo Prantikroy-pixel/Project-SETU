@@ -5,8 +5,46 @@ import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/I
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import { AlertCircle, CheckCircle, Truck, Play, RefreshCw, MapPin, Eye } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import L from 'leaflet';
+// Custom dynamic moving cargo marker icon
+const liveCargoMarkerIcon = new L.DivIcon({
+  className: 'live-cargo-gps-pin',
+  html: `
+    <div class="relative flex items-center justify-center">
+      <div class="absolute w-9 h-9 rounded-full bg-emerald-500/40 animate-ping"></div>
+      <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-400 shadow-xl flex items-center justify-center text-white text-sm">
+        🚚
+      </div>
+      <div class="absolute -bottom-5 bg-slate-900/90 text-white text-[9px] font-black px-1.5 py-0.2 rounded border border-emerald-400/40 whitespace-nowrap shadow-md">
+        LIVE CARGO
+      </div>
+    </div>
+  `,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  popupAnchor: [0, -18],
+});
+
+function getSimulatedPosition(coordinates, progressPercent) {
+  if (!coordinates || coordinates.length === 0) return null;
+  if (coordinates.length === 1 || progressPercent <= 0) {
+    return { lat: coordinates[0][1], lon: coordinates[0][0], pointIndex: 0 };
+  }
+  if (progressPercent >= 100) {
+    const last = coordinates[coordinates.length - 1];
+    return { lat: last[1], lon: last[0], pointIndex: coordinates.length - 1 };
+  }
+  const totalSegments = coordinates.length - 1;
+  const rawIdx = (progressPercent / 100) * totalSegments;
+  const segIdx = Math.min(Math.floor(rawIdx), totalSegments - 1);
+  const segFraction = rawIdx - segIdx;
+
+  const p1 = coordinates[segIdx];
+  const p2 = coordinates[segIdx + 1];
+
+  const lon = p1[0] + (p2[0] - p1[0]) * segFraction;
+  const lat = p1[1] + (p2[1] - p1[1]) * segFraction;
+  return { lat, lon, pointIndex: segIdx };
+}
 
 export default function TransportPortal() {
   const { user } = useAuth();
@@ -25,11 +63,11 @@ export default function TransportPortal() {
   const [vehicleMsg, setVehicleMsg] = useState({ text: '', type: '' });
   const [registering, setRegistering] = useState(false);
 
-  // Tracking / Ping states
+  // Tracking / Simulation states
   const [pingMsg, setPingMsg] = useState({ text: '', type: '' });
-  const [pingSubmitting, setPingSubmitting] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simIntervalId, setSimIntervalId] = useState(null);
+  const [simProgressPercent, setSimProgressPercent] = useState(50); // Default to 50% Midway for instant inspection
 
   useEffect(() => {
     fetchLogisticsData();
@@ -110,56 +148,86 @@ export default function TransportPortal() {
     }
   };
 
-  // Start automatic simulation along route GeoJSON path
-  const handleStartSimulation = (allocation) => {
-    if (!allocation.route_geojson || isSimulating) return;
-    
+  const handleSetSimulationProgress = async (allocation, percent) => {
+    setSimProgressPercent(percent);
+    const coords = allocation?.route_geojson?.geometry?.coordinates;
+    if (!coords || coords.length === 0) return;
+
+    const pos = getSimulatedPosition(coords, percent);
+    if (!pos) return;
+
+    const statusLabel =
+      percent === 0
+        ? 'Origin Depot'
+        : percent >= 100
+        ? 'Destination Sector'
+        : percent === 50
+        ? 'Midway Transit'
+        : `${percent}% in transit`;
+
+    try {
+      if (allocation.vehicle) {
+        await vehicleAPI.ping(allocation.vehicle, {
+          latitude: pos.lat,
+          longitude: pos.lon,
+          status: percent >= 100 ? 'idle' : 'en_route',
+        });
+      }
+      setPingMsg({
+        text: `Live GPS Ping (${percent}%): Lat ${pos.lat.toFixed(4)}°N, Lon ${pos.lon.toFixed(4)}°E — ${statusLabel}`,
+        type: 'info',
+      });
+    } catch {
+      setPingMsg({
+        text: `Simulated GPS (${percent}%): Lat ${pos.lat.toFixed(4)}°N, Lon ${pos.lon.toFixed(4)}°E — ${statusLabel}`,
+        type: 'info',
+      });
+    }
+  };
+
+  const handleTogglePlaySimulation = (allocation) => {
+    if (isSimulating) {
+      if (simIntervalId) clearInterval(simIntervalId);
+      setIsSimulating(false);
+      setSimIntervalId(null);
+      setPingMsg({ text: 'GPS simulation paused.', type: 'info' });
+      return;
+    }
+
+    if (!allocation?.route_geojson) return;
     const coords = allocation.route_geojson.geometry?.coordinates;
     if (!coords || coords.length === 0) return;
 
     setIsSimulating(true);
-    setPingMsg({ text: 'Starting vehicle GPS trace tracker simulation...', type: 'success' });
-    let pointIndex = 0;
+    setPingMsg({ text: 'Live GPS convoy simulation active...', type: 'success' });
+
+    let currentPct = simProgressPercent >= 100 ? 0 : simProgressPercent;
 
     const intervalId = setInterval(async () => {
-      if (pointIndex >= coords.length) {
+      currentPct += 2;
+      if (currentPct > 100) {
+        currentPct = 100;
         clearInterval(intervalId);
         setIsSimulating(false);
         setSimIntervalId(null);
+        setSimProgressPercent(100);
         await updateAllocationStatus(allocation.id, 'delivered');
-        setPingMsg({ text: 'Vehicle arrived at need destination. Allocation set to delivered.', type: 'success' });
+        setPingMsg({ text: 'Vehicle reached destination sector. Status: Delivered.', type: 'success' });
         return;
       }
 
-      // GeoJSON coordinates are [lon, lat]
-      const lon = coords[pointIndex][0];
-      const lat = coords[pointIndex][1];
-
-      try {
-        await vehicleAPI.ping(allocation.vehicle, {
-          latitude: lat,
-          longitude: lon,
-          status: 'en_route',
-        });
-        
-        setPingMsg({
-          text: `Ping sent. Coord: ${lat.toFixed(4)}, ${lon.toFixed(4)}. Progress: ${pointIndex + 1}/${coords.length}`,
-          type: 'info',
-        });
-        
-        // Trigger local updates
-        const listParams = {};
-        if (user?.role === 'transport_operator') {
-          listParams.operator = user.id;
-        }
-        const vData = await vehicleAPI.list(listParams);
-        setVehicles(vData.results || vData || []);
-      } catch (err) {
-        console.error('Simulation ping failed', err);
+      setSimProgressPercent(currentPct);
+      const pos = getSimulatedPosition(coords, currentPct);
+      if (pos && allocation.vehicle) {
+        try {
+          await vehicleAPI.ping(allocation.vehicle, {
+            latitude: pos.lat,
+            longitude: pos.lon,
+            status: 'en_route',
+          });
+        } catch {}
       }
-
-      pointIndex++;
-    }, 4000);
+    }, 650);
 
     setSimIntervalId(intervalId);
   };
@@ -413,81 +481,226 @@ export default function TransportPortal() {
               )}
 
               {selectedAllocation.route_geojson ? (
-                <div className="w-full h-80 relative rounded-md border overflow-hidden">
-                  <MapContainer
-                    center={[
-                      selectedAllocation.route_geojson.geometry.coordinates[0][1],
-                      selectedAllocation.route_geojson.geometry.coordinates[0][0],
-                    ]}
-                    zoom={11}
-                    className="w-full h-full"
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
+                <div className="space-y-3">
+                  {/* Interactive Vehicle Simulation Control Panel */}
+                  <div className="bg-slate-900 text-white p-4 rounded-xl shadow-sm space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs">
+                          GPS
+                        </div>
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-2">
+                            <span>Cargo Vehicle Simulation & Live Telemetry</span>
+                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                              {simProgressPercent}% Transit Progress
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                    {/* Real-time Color-Coded Incident Impact Area Layer */}
-                    <IncidentImpactZoneLayer conditions={conditions} />
+                      {/* Play / Pause Toggle Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePlaySimulation(selectedAllocation)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm ${
+                          isSimulating
+                            ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                            : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
+                        }`}
+                      >
+                        {isSimulating ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+                            <span>Pause Simulation</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>Play GPS Simulation</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
 
-                    {/* 3-Tier Color Coded Dispatch Route */}
-                    {(() => {
-                      const routePts = selectedAllocation.route_geojson.geometry.coordinates.map((c) => [c[1], c[0]]);
-                      const isDelayed = selectedAllocation.delivery_status === 'delayed';
-                      const delayRiskVal = selectedAllocation.match_details?.score_breakdown?.delay_risk;
-                      const calculatedRisk = isDelayed
-                        ? 0.86
-                        : delayRiskVal !== undefined
-                        ? 1.0 - parseFloat(delayRiskVal)
-                        : 0.22;
+                    {/* Progress Slider */}
+                    <div>
+                      <div className="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                        <span>Depot (0%)</span>
+                        <span className="text-emerald-400 font-extrabold">Current: {simProgressPercent}%</span>
+                        <span>Destination (100%)</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={simProgressPercent}
+                        onChange={(e) =>
+                          handleSetSimulationProgress(selectedAllocation, parseInt(e.target.value, 10))
+                        }
+                        className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                      />
+                    </div>
 
-                      return (
-                        <RiskSegmentedRoute
-                          routeCoordinates={routePts}
-                          riskScore={calculatedRisk}
-                          label={`Transit Dispatch #${selectedAllocation.id}`}
-                          statusText={selectedAllocation.delivery_status.replace('_', ' ').toUpperCase()}
-                          originName={selectedAllocation.match_details?.resource_details?.provider_username || 'Depot'}
-                          destName={selectedAllocation.match_details?.need_details?.district_name || 'Relief Target'}
-                        />
-                      );
-                    })()}
-                    
-                    {/* Source Stockpile Marker */}
-                    <Marker
-                      position={[
+                    {/* Quick Preset Jump Buttons (Origin, Midway 50%, Destination) */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Quick Jump:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSimulationProgress(selectedAllocation, 0)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                          simProgressPercent === 0
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                        }`}
+                      >
+                        Origin Depot (0%)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSimulationProgress(selectedAllocation, 50)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-black transition-colors flex items-center gap-1 ${
+                          simProgressPercent === 50
+                            ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
+                            : 'bg-slate-800 hover:bg-slate-700 text-amber-300'
+                        }`}
+                      >
+                        <span>⚡ Midway (50%)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSimulationProgress(selectedAllocation, 85)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                          simProgressPercent === 85
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                        }`}
+                      >
+                        Near Target (85%)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetSimulationProgress(selectedAllocation, 100)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                          simProgressPercent === 100
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                        }`}
+                      >
+                        Delivered (100%)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Map Box */}
+                  <div className="w-full h-96 relative rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                    <MapContainer
+                      center={[
                         selectedAllocation.route_geojson.geometry.coordinates[0][1],
                         selectedAllocation.route_geojson.geometry.coordinates[0][0],
                       ]}
+                      zoom={11}
+                      className="w-full h-full"
                     >
-                      <Popup>
-                        <div className="text-xs p-1 font-bold text-slate-800">
-                          📦 Source Depot Stockpile
-                        </div>
-                      </Popup>
-                    </Marker>
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
 
-                    {/* Destination Need Marker */}
-                    <Marker
-                      position={[
-                        selectedAllocation.route_geojson.geometry.coordinates[
-                          selectedAllocation.route_geojson.geometry.coordinates.length - 1
-                        ][1],
-                        selectedAllocation.route_geojson.geometry.coordinates[
-                          selectedAllocation.route_geojson.geometry.coordinates.length - 1
-                        ][0],
-                      ]}
-                    >
-                      <Popup>
-                        <div className="text-xs p-1 font-bold text-slate-800">
-                          🎯 Target Relief Need Sector
-                        </div>
-                      </Popup>
-                    </Marker>
-                  </MapContainer>
+                      {/* Real-time Color-Coded Incident Impact Area Layer */}
+                      <IncidentImpactZoneLayer conditions={conditions} />
 
-                  {/* 3-Tier Corridor Risk Divisions Legend */}
-                  <RiskLegendControl compact={true} className="absolute bottom-2 right-2 shadow-md" />
+                      {/* 3-Tier Color Coded Dispatch Route */}
+                      {(() => {
+                        const routePts = selectedAllocation.route_geojson.geometry.coordinates.map((c) => [c[1], c[0]]);
+                        const isDelayed = selectedAllocation.delivery_status === 'delayed';
+                        const delayRiskVal = selectedAllocation.match_details?.score_breakdown?.delay_risk;
+                        const calculatedRisk = isDelayed
+                          ? 0.86
+                          : delayRiskVal !== undefined
+                          ? 1.0 - parseFloat(delayRiskVal)
+                          : 0.22;
+
+                        return (
+                          <RiskSegmentedRoute
+                            routeCoordinates={routePts}
+                            riskScore={calculatedRisk}
+                            label={`Transit Dispatch #${selectedAllocation.id}`}
+                            statusText={selectedAllocation.delivery_status.replace('_', ' ').toUpperCase()}
+                            originName={selectedAllocation.match_details?.resource_details?.provider_username || 'Depot'}
+                            destName={selectedAllocation.match_details?.need_details?.district_name || 'Relief Target'}
+                          />
+                        );
+                      })()}
+                      
+                      {/* Source Stockpile Marker */}
+                      <Marker
+                        position={[
+                          selectedAllocation.route_geojson.geometry.coordinates[0][1],
+                          selectedAllocation.route_geojson.geometry.coordinates[0][0],
+                        ]}
+                      >
+                        <Popup>
+                          <div className="text-xs p-1 font-bold text-slate-800">
+                            📦 Source Depot Stockpile
+                          </div>
+                        </Popup>
+                      </Marker>
+
+                      {/* Destination Need Marker */}
+                      <Marker
+                        position={[
+                          selectedAllocation.route_geojson.geometry.coordinates[
+                            selectedAllocation.route_geojson.geometry.coordinates.length - 1
+                          ][1],
+                          selectedAllocation.route_geojson.geometry.coordinates[
+                            selectedAllocation.route_geojson.geometry.coordinates.length - 1
+                          ][0],
+                        ]}
+                      >
+                        <Popup>
+                          <div className="text-xs p-1 font-bold text-slate-800">
+                            🎯 Target Relief Need Sector
+                          </div>
+                        </Popup>
+                      </Marker>
+
+                      {/* Dynamic Simulated Moving Cargo GPS Marker */}
+                      {(() => {
+                        const coords = selectedAllocation.route_geojson?.geometry?.coordinates;
+                        const simPos = getSimulatedPosition(coords, simProgressPercent);
+                        if (!simPos) return null;
+
+                        return (
+                          <Marker position={[simPos.lat, simPos.lon]} icon={liveCargoMarkerIcon}>
+                            <Popup>
+                              <div className="text-xs p-1 text-slate-900 font-sans space-y-1">
+                                <div className="font-extrabold text-emerald-700 flex items-center gap-1">
+                                  <span>🚚 Convoy Vehicle #{selectedAllocation.vehicle}</span>
+                                </div>
+                                <div className="text-[11px] font-bold text-slate-800">
+                                  Progress: {simProgressPercent}% {simProgressPercent === 50 ? '(Midway in transit)' : ''}
+                                </div>
+                                <div className="text-[10px] font-mono text-slate-500">
+                                  GPS: {simPos.lat.toFixed(4)}°N, {simPos.lon.toFixed(4)}°E
+                                </div>
+                                <div className="text-[10px] text-slate-600 font-semibold bg-slate-100 p-1 rounded">
+                                  Status: {simProgressPercent >= 100 ? 'Arrived at Destination' : simProgressPercent === 50 ? 'Cruising Midway Pass' : 'En Route to Target'}
+                                </div>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        );
+                      })()}
+                    </MapContainer>
+
+                    {/* Real-time Severity Divisions Legend */}
+                    <IncidentSeverityLegend
+                      totalIncidents={conditions.length}
+                      className="absolute bottom-3 right-3 shadow-xl"
+                    />
+                  </div>
                 </div>
               ) : (
                 <p className="text-xs text-slate-400 italic">No route geo-geometry calculated for this transit allocation.</p>
