@@ -66,8 +66,10 @@ const inspectorIcon = new L.DivIcon({
   popupAnchor: [0, -14],
 });
 
-function formatRainActiveTime(durationHours) {
-  if (!durationHours || durationHours <= 0) return 'No Active Rain';
+function formatRainActiveTime(durationHours, rainfallMm = 1.0) {
+  if (!rainfallMm || rainfallMm <= 0 || !durationHours || durationHours <= 0) {
+    return 'Clear / No Active Rain';
+  }
   const now = new Date();
   const startTime = new Date(now.getTime() - durationHours * 60 * 60 * 1000);
   let hours = startTime.getHours();
@@ -350,7 +352,7 @@ export default function MapLocationInspector({
                         {/* 1. Rainfall Start Time & Duration */}
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">1. Rain Active:</span>
-                          <span className="font-bold text-sky-300">{formatRainActiveTime(rainDur)}</span>
+                          <span className="font-bold text-sky-300">{formatRainActiveTime(rainDur, rainMm)}</span>
                         </div>
 
                         {/* 2. Drainage Capacity */}
