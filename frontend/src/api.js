@@ -1,9 +1,8 @@
 import axios from 'axios';
 import { emitRealtimeEvent } from './utils/notificationSystem';
 
-// When VITE_API_URL is empty, use '' in dev so Vite's dev proxy intercepts /api/* calls
-// In production, fallback to the deployed Vercel backend URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://setu-backend-tau.vercel.app');
+// When VITE_API_URL is empty, use relative '' so Vercel routes /api/* to Django backend, and Vite dev server proxies /api/* to localhost:8000
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -1315,8 +1314,15 @@ export async function fetchLiveGeospatialPoint(lat, lon, overrides = {}) {
         windSpeed = wData.current.wind_speed_10m ?? windSpeed;
       }
       const hourlyRain = wData.hourly?.precipitation || [];
-      if (hourlyRain.length >= 24 && !overrides.rainfall) {
-        rainfall24h = Math.round(hourlyRain.slice(0, 24).reduce((a, b) => a + (b || 0), 0) * 10) / 10;
+      if (hourlyRain.length >= 24) {
+        const past24 = hourlyRain.slice(0, 24);
+        if (!overrides.rainfall) {
+          rainfall24h = Math.round(past24.reduce((a, b) => a + (b || 0), 0) * 10) / 10;
+        }
+        const activeCount = past24.filter((p) => p !== null && p > 0.15).length;
+        if (activeCount > 0 && !overrides.rainfall_duration_hours) {
+          rainDurationHours = activeCount;
+        }
       }
       const hourlyMoisture = wData.hourly?.soil_moisture_0_to_1cm || [];
       if (hourlyMoisture.length > 0 && !overrides.soil_saturation) {
@@ -1346,14 +1352,17 @@ export async function fetchLiveGeospatialPoint(lat, lon, overrides = {}) {
     ? parseFloat(overrides.vegetation)
     : (isUrbanBasin ? 0.25 : (isNER ? 0.65 : 0.48));
 
-  // Compute distinct micro-climatic rain duration and active start time from coordinates
-  let rainDurationHours = 0;
-  if (overrides.rainfall_duration_hours) {
-    rainDurationHours = parseFloat(overrides.rainfall_duration_hours);
-  } else if (rainfall24h > 0) {
-    const coordSeed = Math.abs(Math.sin(lat * 12.9898 + lon * 78.233) * 43758.5453) % 1;
-    const spatialVariation = 1.2 + (coordSeed * 4.5); // 1.2h to 5.7h variation
-    rainDurationHours = Math.round(Math.max(0.8, Math.min(8.5, (rainfall24h / 18.0) + spatialVariation)) * 10) / 10;
+  // Compute distinct micro-climatic rain duration and active start time if not set from Open-Meteo
+  if (!rainDurationHours) {
+    if (overrides.rainfall_duration_hours) {
+      rainDurationHours = parseFloat(overrides.rainfall_duration_hours);
+    } else if (rainfall24h > 0) {
+      const coordSeed = Math.abs(Math.sin(lat * 12.9898 + lon * 78.233) * 43758.5453) % 1;
+      const spatialVariation = 1.2 + (coordSeed * 4.5);
+      rainDurationHours = Math.round(Math.max(0.8, Math.min(8.5, (rainfall24h / 18.0) + spatialVariation)) * 10) / 10;
+    } else {
+      rainDurationHours = 0;
+    }
   }
   const rainIntensity = rainDurationHours > 0 ? Math.round((rainfall24h / Math.max(0.5, rainDurationHours)) * 10) / 10 : 0;
 

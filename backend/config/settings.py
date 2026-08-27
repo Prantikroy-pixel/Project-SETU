@@ -32,14 +32,15 @@ if not SECRET_KEY:
     else:
         raise ImproperlyConfigured("CRITICAL SECURITY VIOLATION: SECRET_KEY environment variable must be set in production.")
 
+# Trust HTTPS proxy headers from Vercel / Nginx load balancers
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
 if allowed_hosts_env:
     ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
 else:
-    # Strict fallback for local development (no wildcard)
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'testserver']
-    if os.getenv('VERCEL') == '1' or 'VERCEL' in os.environ:
-        ALLOWED_HOSTS.append('*')
+    # Permit all hosts on Vercel cloud deployment
+    ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -264,8 +265,8 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS Configuration (Strict Origin Whitelisting in production, open in debug)
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+# CORS Configuration (Permit Vercel production domains & local development origins)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # Whitelist Vite dev frontends and local dev ports
