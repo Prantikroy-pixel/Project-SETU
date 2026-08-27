@@ -325,11 +325,11 @@ export default function MapLocationInspector({
 
                 {/* 3-Feature Compound Flood Predictor Matrix */}
                 {(() => {
-                  const rainDur = features.rainfall_duration_hours || 4.0;
-                  const drainageVal = features.drainage_quality || 1.10;
-                  const vegVal = features.vegetation_cover || 0.25;
-                  const rainMm = features.rainfall_mm || 45.0;
-                  const isFloodPredicted = features.is_urban_flash_flood || (drainageVal <= 1.5 && (rainMm >= 45 || rainDur >= 3));
+                  const rainMm = typeof features.rainfall_mm === 'number' ? features.rainfall_mm : 0.0;
+                  const rainDur = typeof features.rainfall_duration_hours === 'number' ? features.rainfall_duration_hours : (rainMm > 0 ? 1.5 : 0.0);
+                  const drainageVal = typeof features.drainage_quality === 'number' ? features.drainage_quality : 2.10;
+                  const vegVal = typeof features.vegetation_cover === 'number' ? features.vegetation_cover : 0.58;
+                  const isFloodPredicted = Boolean(features.is_urban_flash_flood) || (drainageVal <= 1.5 && (rainMm >= 45.0 || rainDur >= 3.0));
 
                   return (
                     <div className="bg-slate-900 text-white p-2.5 rounded-lg border border-slate-700/80 space-y-2 shadow-md">
