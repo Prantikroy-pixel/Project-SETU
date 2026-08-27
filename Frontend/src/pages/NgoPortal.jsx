@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import { resourceAPI, matchAPI, districtAPI, conditionAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import { AlertCircle, CheckCircle, Package, PlusCircle, MapPin, Eye, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+// Fix Leaflet marker icons issue in React/Vite builds
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 function MapClickHandler({ onMapClick }) {
   useMapEvents({
@@ -39,26 +48,38 @@ export default function NgoPortal() {
 
   useEffect(() => {
     fetchDepotData();
-  }, []);
+  }, [user?.id]);
 
   const fetchDepotData = async () => {
     setLoading(true);
     try {
-      const distData = await districtAPI.list();
-      setDistricts(distData.results || distData || []);
+      const [distRes, resRes, matchRes, condRes] = await Promise.allSettled([
+        districtAPI.list(),
+        resourceAPI.list(user?.id ? { provider: user?.id } : {}),
+        matchAPI.list(),
+        conditionAPI.list(),
+      ]);
 
-      const resData = await resourceAPI.list({ provider: user?.id });
-      setResources(resData.results || resData || []);
-
-      const matchData = await matchAPI.list();
-      // Filter matches where this NGO's resources are involved
-      const ngoMatches = (matchData.results || matchData || []).filter(
-        (m) => m.resource_details?.provider === user?.id
-      );
-      setMatches(ngoMatches);
-
-      const cData = await conditionAPI.list();
-      setConditions(cData.results || cData || []);
+      if (distRes.status === 'fulfilled' && distRes.value) {
+        const dData = distRes.value;
+        setDistricts(dData.results || (Array.isArray(dData) ? dData : []));
+      }
+      if (resRes.status === 'fulfilled' && resRes.value) {
+        const rData = resRes.value;
+        setResources(rData.results || (Array.isArray(rData) ? rData : []));
+      }
+      if (matchRes.status === 'fulfilled' && matchRes.value) {
+        const mData = matchRes.value;
+        const allMatches = mData.results || (Array.isArray(mData) ? mData : []);
+        const ngoMatches = user?.id
+          ? allMatches.filter((m) => m.resource_details?.provider === user?.id)
+          : allMatches;
+        setMatches(ngoMatches);
+      }
+      if (condRes.status === 'fulfilled' && condRes.value) {
+        const cData = condRes.value;
+        setConditions(cData.results || (Array.isArray(cData) ? cData : []));
+      }
     } catch (err) {
       console.error('Error loading NGO data', err);
     } finally {
@@ -351,7 +372,7 @@ export default function NgoPortal() {
                     {resources.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3 text-slate-400">#{r.id}</td>
-                        <td className="px-4 py-3 font-bold uppercase">{r.type.replace('_', ' ')}</td>
+                        <td className="px-4 py-3 font-bold uppercase">{r.type ? r.type.replace('_', ' ') : 'Resource'}</td>
                         <td className="px-4 py-3 font-semibold text-slate-900">{r.quantity_available} {r.unit}</td>
                         <td className="px-4 py-3">{r.district_name || 'General'}</td>
                         <td className="px-4 py-3">
@@ -362,7 +383,7 @@ export default function NgoPortal() {
                                 : 'bg-yellow-100 text-yellow-800'
                             }`}
                           >
-                            {r.verification_status.replace('_', ' ')}
+                            {r.verification_status ? r.verification_status.replace('_', ' ') : 'Pending'}
                           </span>
                         </td>
                       </tr>
@@ -400,21 +421,21 @@ export default function NgoPortal() {
                               : 'bg-blue-100 text-blue-800 border border-blue-200'
                           }`}
                         >
-                          {m.status}
+                          {m.status || 'Proposed'}
                         </span>
                       </div>
                       <div>
                         <strong>Resource Sent:</strong> {m.resource_details?.quantity_available} {m.resource_details?.unit} of{' '}
-                        <span className="uppercase text-slate-900 font-bold">{m.need_details?.type.replace('_', ' ')}</span>
+                        <span className="uppercase text-slate-900 font-bold">{m.need_details?.type ? m.need_details.type.replace('_', ' ') : 'Supplies'}</span>
                       </div>
                       <div>
-                        <strong>Relief Target Need:</strong> #{m.need_details?.id} in {m.need_details?.district_name || 'Unknown'} (Urgency: {m.need_details?.urgency})
+                        <strong>Relief Target Need:</strong> #{m.need_details?.id} in {m.need_details?.district_name || 'Unknown'} (Urgency: {m.need_details?.urgency || 'Normal'})
                       </div>
                     </div>
                     <div className="mt-3 sm:mt-0 text-left sm:text-right">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scoring Fit</div>
-                      <div className="text-lg font-black text-primary-600">{Math.round(m.score * 100)}%</div>
-                      <div className="text-[10px] text-slate-500 font-bold">Proximity distance: {m.score_breakdown?.distance_km} km</div>
+                      <div className="text-lg font-black text-primary-600">{Math.round((m.score || 0) * 100)}%</div>
+                      <div className="text-[10px] text-slate-500 font-bold">Proximity distance: {m.score_breakdown?.distance_km ?? '—'} km</div>
                     </div>
                   </div>
                 ))}

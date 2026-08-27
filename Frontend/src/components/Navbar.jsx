@@ -75,9 +75,23 @@ export default function Navbar() {
             {user && (
               <div className="hidden md:flex items-center space-x-1 border-l border-slate-200/80 pl-6">
                 {(user.role === 'district_admin' || user.role === 'admin') && (
-                  <NavLink to="/dashboard" className={navItemClass}>
-                    {t('command_center') || 'Command Dashboard'}
-                  </NavLink>
+                  <>
+                    <NavLink to="/dashboard" className={navItemClass}>
+                      {t('command_center') || 'Dashboard'}
+                    </NavLink>
+                    <NavLink to="/officer" className={navItemClass}>
+                      {t('field_officer') || 'Officer'}
+                    </NavLink>
+                    <NavLink to="/ngo" className={navItemClass}>
+                      {t('ngo_console') || 'NGO Hub'}
+                    </NavLink>
+                    <NavLink to="/operator" className={navItemClass}>
+                      {t('fleet_operator') || 'Transport'}
+                    </NavLink>
+                    <NavLink to="/citizen" className={navItemClass}>
+                      {t('citizen_portal') || 'Citizen'}
+                    </NavLink>
+                  </>
                 )}
 
                 {user.role === 'field_officer' && (
@@ -168,31 +182,48 @@ export default function Navbar() {
 
       {/* Mobile Navigation Panel */}
       {user && (
-        <div className="md:hidden flex justify-around py-1.5 border-t border-slate-200/60 bg-slate-50/90 text-xs font-semibold">
-          {(user.role === 'district_admin' || user.role === 'admin') && (
-            <NavLink to="/dashboard" className={navItemClass}>
-              Dashboard
-            </NavLink>
-          )}
-          {user.role === 'field_officer' && (
-            <NavLink to="/officer" className={navItemClass}>
-              Officer
-            </NavLink>
-          )}
-          {user.role === 'ngo' && (
-            <NavLink to="/ngo" className={navItemClass}>
-              NGO Hub
-            </NavLink>
-          )}
-          {user.role === 'transport_operator' && (
-            <NavLink to="/operator" className={navItemClass}>
-              Operator
-            </NavLink>
-          )}
-          {user.role === 'citizen' && (
-            <NavLink to="/citizen" className={navItemClass}>
-              Citizen
-            </NavLink>
+        <div className="md:hidden flex justify-around py-1.5 border-t border-slate-200/60 bg-slate-50/90 text-xs font-semibold overflow-x-auto">
+          {(user.role === 'district_admin' || user.role === 'admin') ? (
+            <>
+              <NavLink to="/dashboard" className={navItemClass}>
+                Dashboard
+              </NavLink>
+              <NavLink to="/officer" className={navItemClass}>
+                Officer
+              </NavLink>
+              <NavLink to="/ngo" className={navItemClass}>
+                NGO
+              </NavLink>
+              <NavLink to="/operator" className={navItemClass}>
+                Transport
+              </NavLink>
+              <NavLink to="/citizen" className={navItemClass}>
+                Citizen
+              </NavLink>
+            </>
+          ) : (
+            <>
+              {user.role === 'field_officer' && (
+                <NavLink to="/officer" className={navItemClass}>
+                  Officer
+                </NavLink>
+              )}
+              {user.role === 'ngo' && (
+                <NavLink to="/ngo" className={navItemClass}>
+                  NGO Hub
+                </NavLink>
+              )}
+              {user.role === 'transport_operator' && (
+                <NavLink to="/operator" className={navItemClass}>
+                  Operator
+                </NavLink>
+              )}
+              {user.role === 'citizen' && (
+                <NavLink to="/citizen" className={navItemClass}>
+                  Citizen
+                </NavLink>
+              )}
+            </>
           )}
         </div>
       )}

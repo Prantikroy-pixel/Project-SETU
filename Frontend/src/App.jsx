@@ -96,7 +96,10 @@ function RoleRoute({ children, allowedRoles }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  const userRole = (user.role || '').toLowerCase();
+  const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
+
+  if (!normalizedAllowed.includes(userRole)) {
     return <Navigate to="/" replace />;
   }
 
@@ -145,7 +148,7 @@ export default function App() {
           <Route
             path="/officer"
             element={
-              <RoleRoute allowedRoles={['field_officer']}>
+              <RoleRoute allowedRoles={['field_officer', 'district_admin', 'admin']}>
                 <FieldOfficerPortal />
               </RoleRoute>
             }
@@ -153,7 +156,7 @@ export default function App() {
           <Route
             path="/ngo"
             element={
-              <RoleRoute allowedRoles={['ngo']}>
+              <RoleRoute allowedRoles={['ngo', 'district_admin', 'admin']}>
                 <NgoPortal />
               </RoleRoute>
             }
@@ -161,7 +164,7 @@ export default function App() {
           <Route
             path="/operator"
             element={
-              <RoleRoute allowedRoles={['transport_operator']}>
+              <RoleRoute allowedRoles={['transport_operator', 'district_admin', 'admin']}>
                 <TransportPortal />
               </RoleRoute>
             }
@@ -169,7 +172,7 @@ export default function App() {
           <Route
             path="/citizen"
             element={
-              <RoleRoute allowedRoles={['citizen']}>
+              <RoleRoute allowedRoles={['citizen', 'district_admin', 'admin']}>
                 <CitizenPortal />
               </RoleRoute>
             }
