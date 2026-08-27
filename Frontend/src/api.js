@@ -1203,7 +1203,17 @@ export async function fetchLiveGeospatialPoint(lat, lon, overrides = {}) {
   const drainage = overrides.drainage ? parseFloat(overrides.drainage) : (slope <= 4 ? 2.2 : 1.4);
   const vegetation = overrides.vegetation ? parseFloat(overrides.vegetation) : (isNER ? 0.65 : 0.48);
 
-  // 4. ML Logistic Hazard Inference
+  let rainDurationHours = 0;
+  if (overrides.rainfall_duration_hours) {
+    rainDurationHours = parseFloat(overrides.rainfall_duration_hours);
+  } else if (rainfall24h > 0) {
+    rainDurationHours = Math.max(1, Math.round(rainfall24h / 16.0));
+  }
+  const rainIntensity = rainDurationHours > 0 ? Math.round((rainfall24h / Math.max(0.5, rainDurationHours)) * 10) / 10 : 0;
+
+  // 4. ML Logistic Hazard Inference & Urban Flash Flood Rules
+  const urbanFlashFloodCondition = (drainage <= 1.5 && vegetation <= 0.40 && (rainfall24h >= 50 || rainDurationHours >= 3));
+
   const z =
     0.028 * rainfall24h +
     0.052 * slope +
@@ -1214,7 +1224,9 @@ export async function fetchLiveGeospatialPoint(lat, lon, overrides = {}) {
     3.1;
   let riskScore = 1.0 / (1.0 + Math.exp(-z));
 
-  if ((slope >= 18 && rainfall24h >= 40) || (slope >= 28 && rainfall24h >= 25)) {
+  if (urbanFlashFloodCondition) {
+    riskScore = Math.max(riskScore, 0.85);
+  } else if ((slope >= 18 && rainfall24h >= 40) || (slope >= 28 && rainfall24h >= 25)) {
     riskScore = Math.max(riskScore, 0.82);
   } else if (slope <= 3.5 && rainfall24h >= 65) {
     riskScore = Math.max(riskScore, 0.74);
@@ -1224,6 +1236,14 @@ export async function fetchLiveGeospatialPoint(lat, lon, overrides = {}) {
   const isCritical = riskScore >= 0.70;
   const isHigh = riskScore >= 0.45;
   const threatLevel = isCritical ? 'critical' : isHigh ? 'high' : riskScore >= 0.25 ? 'moderate' : 'low';
+
+  const explanationText = urbanFlashFloodCondition
+    ? `URBAN FLASH FLOOD RISK (Guwahati / Silchar / Built Basin): Sustained heavy rainfall over ${rainDurationHours} continuous hours (${rainfall24h}mm total, ${rainIntensity}mm/h intensity). Poor storm drainage (${drainage} km/km²) and sparse vegetation (${vegetation} NDVI) cause severe street waterlogging and road submergence.`
+    : isCritical
+    ? `🚨 High disruption probability (${Math.round(riskScore * 100)}%) detected from live satellite telemetry: ${slope}° slope at ${elevation}m elevation with ${rainfall24h}mm precipitation over ${rainDurationHours}h.`
+    : isHigh
+    ? `⚠️ Moderate-to-high environmental risk (${Math.round(riskScore * 100)}%): sustained rain (${rainfall24h}mm) on steep incline (${slope}°).`
+    : `✅ Corridor clear (${Math.round(riskScore * 100)}% risk). Live satellite telemetry confirms nominal pass conditions (${rainfall24h}mm rainfall, ${slope}° slope, ${elevation}m elev).`;
 
   return mockResponse({
     latitude: lat,
@@ -1241,17 +1261,16 @@ export async function fetchLiveGeospatialPoint(lat, lon, overrides = {}) {
     },
     features: {
       rainfall_mm: rainfall24h,
+      rainfall_duration_hours: rainDurationHours,
+      rainfall_intensity_mm_hr: rainIntensity,
       slope_degrees: slope,
       elevation_m: elevation,
       soil_saturation: soilSaturation,
       drainage_quality: drainage,
       vegetation_cover: vegetation,
+      is_urban_flash_flood: urbanFlashFloodCondition,
     },
-    explanation: isCritical
-      ? `🚨 High disruption probability (${Math.round(riskScore * 100)}%) detected from live satellite telemetry: ${slope}° slope at ${elevation}m elevation with ${rainfall24h}mm precipitation and ${Math.round(soilSaturation * 100)}% soil saturation.`
-      : isHigh
-      ? `⚠️ Moderate-to-high environmental risk (${Math.round(riskScore * 100)}%): steep incline (${slope}°) at ${elevation}m elevation.`
-      : `✅ Corridor clear (${Math.round(riskScore * 100)}% risk). Live satellite telemetry confirms nominal pass conditions (${rainfall24h}mm rainfall, ${slope}° slope, ${elevation}m elev).`,
+    explanation: explanationText,
     model_version: '3.0.0-live-satellite',
   });
 };

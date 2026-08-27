@@ -277,6 +277,7 @@ class ConditionViewSet(viewsets.ModelViewSet):
                 return float(val) if val is not None and val != '' else None
 
             rainfall_val = _get_float_param('rainfall') or _get_float_param('rainfall_24h')
+            rainfall_dur_val = _get_float_param('rainfall_duration_hours') or _get_float_param('duration') or _get_float_param('duration_hours')
             slope_val = _get_float_param('slope')
             elevation_val = _get_float_param('elevation') or _get_float_param('elevation_m')
             soil_sat_val = _get_float_param('soil_saturation')
@@ -290,6 +291,7 @@ class ConditionViewSet(viewsets.ModelViewSet):
                 lat=lat,
                 lon=lon,
                 rainfall=rainfall_val,
+                rainfall_duration_hours=rainfall_dur_val,
                 slope=slope_val,
                 elevation=elevation_val,
                 soil_saturation=soil_sat_val,
@@ -297,6 +299,29 @@ class ConditionViewSet(viewsets.ModelViewSet):
                 vegetation_cover=veg_val,
                 use_realtime=use_realtime
             )
+
+            # Check DB ground truth condition reports near coordinates
+            try:
+                nearby_db_condition = Condition.objects.filter(
+                    latitude__gte=lat - 0.08, latitude__lte=lat + 0.08,
+                    longitude__gte=lon - 0.08, longitude__lte=lon + 0.08
+                ).order_by('-reported_at').first()
+
+                if nearby_db_condition:
+                    result['db_ground_truth_report'] = {
+                        'condition_type': nearby_db_condition.condition_type,
+                        'value': nearby_db_condition.value,
+                        'reported_at': nearby_db_condition.reported_at.isoformat(),
+                        'source': nearby_db_condition.source,
+                    }
+                    if nearby_db_condition.value in ('blocked', 'flooded', 'landslide'):
+                        result['risk_score'] = max(result['risk_score'], 0.88)
+                        result['risk_level'] = 'critical'
+                        result['is_critical'] = True
+                        result['explanation'] += f" Verified ground report from field officer: {nearby_db_condition.condition_type} is {nearby_db_condition.value}."
+            except Exception:
+                pass
+
             return Response(result)
         except Exception as e:
             return Response({'error': f'Prediction failed: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)

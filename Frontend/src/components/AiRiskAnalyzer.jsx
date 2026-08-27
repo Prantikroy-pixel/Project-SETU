@@ -495,8 +495,24 @@ export default function AiRiskAnalyzer({
                 )}
               </div>
 
+              {/* Urban Flash Flood Alert Banner */}
+              {(predictionResult.features?.is_urban_flash_flood || predictionResult.explanation?.includes('Urban flash flood') || predictionResult.explanation?.includes('URBAN FLASH FLOOD')) && (
+                <div className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg text-xs text-amber-900 flex items-start gap-3 shadow-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <div className="font-extrabold uppercase tracking-wider text-[11px] text-amber-800">
+                      🌆 Urban Flash Flood Alert (Guwahati / Silchar Basin Sector)
+                    </div>
+                    <div className="text-xs font-semibold mt-1 text-amber-900 leading-relaxed">
+                      Elevated risk of urban street waterlogging and road submergence due to continuous rain sustained over{' '}
+                      <strong>{predictionResult.features?.rainfall_duration_hours || 4.5} consecutive hours</strong> combined with low drainage capacity ({predictionResult.features?.drainage_quality || '1.10'} km/km²) and sparse vegetation root cover ({predictionResult.features?.vegetation_cover || '0.25'} NDVI).
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Environmental Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <div className="text-slate-400 font-bold uppercase text-[10px] flex items-center gap-1">
                     <CloudRain className="w-3.5 h-3.5 text-sky-500" />
@@ -508,6 +524,21 @@ export default function AiRiskAnalyzer({
                       predictionResult.realtime_factors?.rainfall_24h_mm ??
                       predictionResult.input_features?.rainfall ??
                       '0.0'} mm
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="text-slate-400 font-bold uppercase text-[10px] flex items-center gap-1">
+                    <Activity className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Rain Duration</span>
+                  </div>
+                  <div className="text-sm font-black text-slate-900 mt-1">
+                    {predictionResult.features?.rainfall_duration_hours ?? '1.0'} hrs
+                    {predictionResult.features?.rainfall_intensity_mm_hr ? (
+                      <span className="text-[10px] font-semibold text-slate-500 block text-slate-500">
+                        ({predictionResult.features.rainfall_intensity_mm_hr} mm/h)
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
@@ -528,16 +559,20 @@ export default function AiRiskAnalyzer({
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <div className="text-slate-400 font-bold uppercase text-[10px] flex items-center gap-1">
                     <Compass className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Elevation</span>
+                    <span>Drainage Quality</span>
                   </div>
                   <div className="text-sm font-black text-slate-900 mt-1">
-                    {Math.round(
-                      predictionResult.features?.elevation_m ??
-                        predictionResult.range_metrics?.max_elevation_m ??
-                        predictionResult.realtime_factors?.elevation_m ??
-                        predictionResult.input_features?.elevation ??
-                        120
-                    )} m
+                    {predictionResult.features?.drainage_quality ?? '2.1'} km/km²
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="text-slate-400 font-bold uppercase text-[10px] flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-green-500" />
+                    <span>Vegetation NDVI</span>
+                  </div>
+                  <div className="text-sm font-black text-slate-900 mt-1">
+                    {predictionResult.features?.vegetation_cover ? `${Math.round(predictionResult.features.vegetation_cover * 100)}%` : '58%'}
                   </div>
                 </div>
 
