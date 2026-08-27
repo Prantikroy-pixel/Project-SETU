@@ -109,21 +109,38 @@ export default function DistrictDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const summary = await dashboardAPI.getSummary();
-      setOverview(summary.overview);
-      setDistricts(summary.districts || []);
+      const [summaryRes, needsRes, vehiclesRes, bordersRes, conditionsRes] = await Promise.allSettled([
+        dashboardAPI.getSummary(),
+        needAPI.list({ status: 'open' }),
+        vehicleAPI.list({ status: 'idle' }),
+        boundaryAPI.getNerBorders(),
+        conditionAPI.list(),
+      ]);
 
-      const needsData = await needAPI.list({ status: 'open' });
-      setOpenNeeds(needsData.results || needsData || []);
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) {
+        setOverview(summaryRes.value.overview || summaryRes.value);
+        setDistricts(summaryRes.value.districts || []);
+      }
 
-      const vData = await vehicleAPI.list({ status: 'idle' });
-      setVehicles(vData.results || vData || []);
+      if (needsRes.status === 'fulfilled' && needsRes.value) {
+        const nData = needsRes.value;
+        setOpenNeeds(nData.results || (Array.isArray(nData) ? nData : []));
+      }
 
-      const borderData = await boundaryAPI.getNerBorders();
-      setBorderCheckpoints(borderData.checkpoints || []);
+      if (vehiclesRes.status === 'fulfilled' && vehiclesRes.value) {
+        const vData = vehiclesRes.value;
+        setVehicles(vData.results || (Array.isArray(vData) ? vData : []));
+      }
 
-      const conditionsData = await conditionAPI.list();
-      setConditions(conditionsData.results || conditionsData || []);
+      if (bordersRes.status === 'fulfilled' && bordersRes.value) {
+        const bData = bordersRes.value;
+        setBorderCheckpoints(bData.checkpoints || (Array.isArray(bData) ? bData : []));
+      }
+
+      if (conditionsRes.status === 'fulfilled' && conditionsRes.value) {
+        const cData = conditionsRes.value;
+        setConditions(cData.results || (Array.isArray(cData) ? cData : []));
+      }
     } catch (err) {
       console.error('Error fetching command summary', err);
     } finally {
@@ -133,20 +150,34 @@ export default function DistrictDashboard() {
 
   const fetchAdminListData = async () => {
     try {
-      const ngos = await authAPI.getUsers({ role: 'ngo' });
-      setNgoList(ngos.results || ngos || []);
+      const [ngosRes, transportersRes, officersRes, vAllRes, rListRes] = await Promise.allSettled([
+        authAPI.getUsers({ role: 'ngo' }),
+        authAPI.getUsers({ role: 'transport_operator' }),
+        authAPI.getUsers({ role: 'field_officer' }),
+        vehicleAPI.list(),
+        resourceAPI.list(),
+      ]);
 
-      const transporters = await authAPI.getUsers({ role: 'transport_operator' });
-      setTransporterList(transporters.results || transporters || []);
-
-      const officers = await authAPI.getUsers({ role: 'field_officer' });
-      setFieldOfficerList(officers.results || officers || []);
-
-      const vAll = await vehicleAPI.list();
-      setAllVehiclesList(vAll.results || vAll || []);
-
-      const rList = await resourceAPI.list();
-      setResourceList(rList.results || rList || []);
+      if (ngosRes.status === 'fulfilled' && ngosRes.value) {
+        const ngos = ngosRes.value;
+        setNgoList(ngos.results || (Array.isArray(ngos) ? ngos : []));
+      }
+      if (transportersRes.status === 'fulfilled' && transportersRes.value) {
+        const t = transportersRes.value;
+        setTransporterList(t.results || (Array.isArray(t) ? t : []));
+      }
+      if (officersRes.status === 'fulfilled' && officersRes.value) {
+        const o = officersRes.value;
+        setFieldOfficerList(o.results || (Array.isArray(o) ? o : []));
+      }
+      if (vAllRes.status === 'fulfilled' && vAllRes.value) {
+        const v = vAllRes.value;
+        setAllVehiclesList(v.results || (Array.isArray(v) ? v : []));
+      }
+      if (rListRes.status === 'fulfilled' && rListRes.value) {
+        const r = rListRes.value;
+        setResourceList(r.results || (Array.isArray(r) ? r : []));
+      }
     } catch (err) {
       console.error('Error fetching admin directory data', err);
     }
