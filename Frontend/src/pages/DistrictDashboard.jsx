@@ -663,7 +663,7 @@ export default function DistrictDashboard() {
                                 <strong>Bottleneck Index:</strong> {d.bottleneck_index}
                               </div>
                               <div>
-                                <strong>Status:</strong> {d.connectivity_status.replace('_', ' ')}
+                                <strong>Status:</strong> {d.connectivity_status ? d.connectivity_status.replace('_', ' ') : 'Normal'}
                               </div>
                             </div>
                           </Popup>
@@ -772,7 +772,7 @@ export default function DistrictDashboard() {
                               onClick={() => handleFetchMatches(n.id)}
                               className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${badgeStyle}`}
                             >
-                              <span className="uppercase font-bold">{n.type.replace('_', ' ')}</span>
+                              <span className="uppercase font-bold">{n.type ? n.type.replace('_', ' ') : 'RESOURCE'}</span>
                               <span className="opacity-90">({n.quantity} {n.unit})</span>
                               <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${tagBg}`}>
                                 {priorityTag}

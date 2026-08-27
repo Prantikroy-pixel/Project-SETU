@@ -400,7 +400,7 @@ export default function TransportPortal() {
 
                     <div className="grid grid-cols-2 gap-4 text-slate-600 mb-3">
                       <div>
-                        <strong>Cargo Type:</strong> <span className="uppercase text-slate-900 font-bold">{a.need_type.replace('_', ' ')}</span>
+                        <strong>Cargo Type:</strong> <span className="uppercase text-slate-900 font-bold">{a.need_type ? a.need_type.replace('_', ' ') : 'Supplies'}</span>
                       </div>
                       <div>
                         <strong>Load Volume:</strong> {a.need_quantity} {a.need_unit}
@@ -631,7 +631,7 @@ export default function TransportPortal() {
                             conditions={conditions}
                             riskScore={calculatedRisk}
                             label={`Transit Dispatch #${selectedAllocation.id}`}
-                            statusText={selectedAllocation.delivery_status.replace('_', ' ').toUpperCase()}
+                            statusText={selectedAllocation.delivery_status ? selectedAllocation.delivery_status.replace('_', ' ').toUpperCase() : 'TRANSIT'}
                             originName={selectedAllocation.match_details?.resource_details?.provider_username || 'Depot'}
                             destName={selectedAllocation.match_details?.need_details?.district_name || 'Relief Target'}
                           />

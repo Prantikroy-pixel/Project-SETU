@@ -404,7 +404,7 @@ export default function CitizenPortal() {
                       <Popup>
                         <div className="text-xs p-1">
                           <div className="font-bold text-orange-600 mb-1">RELIEF NEED</div>
-                          <div><strong>Type:</strong> {n.type.replace('_', ' ')}</div>
+                          <div><strong>Type:</strong> {n.type ? n.type.replace('_', ' ') : 'Relief'}</div>
                           <div><strong>Quantity:</strong> {n.quantity} {n.unit}</div>
                           <div><strong>Urgency:</strong> <span className="uppercase text-red-600 font-bold">{n.urgency}</span></div>
                           {n.description && <div className="mt-1 text-slate-600 border-t pt-1">"{n.description}"</div>}
@@ -443,7 +443,7 @@ export default function CitizenPortal() {
                   >
                     <div className="flex justify-between items-center">
                       <span className="uppercase tracking-wider font-extrabold text-[10px]">
-                        {a.alert_type.replace('_', ' ')}
+                        {a.alert_type ? a.alert_type.replace('_', ' ') : 'Alert'}
                       </span>
                       <span className="text-[10px] text-slate-400">
                         {new Date(a.sent_at).toLocaleTimeString()}

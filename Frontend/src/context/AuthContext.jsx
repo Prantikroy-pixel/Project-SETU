@@ -11,32 +11,44 @@ export const AuthProvider = ({ children }) => {
 
   // Load and validate user session on startup
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('access_token');
-
     const initSession = async () => {
-      if (storedUser && storedToken) {
-        // Restore from storage immediately for fast UI
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        setToken(storedToken);
-        setLanguage(parsedUser.preferred_language || 'en');
+      try {
+        const storedUser = localStorage.getItem('user');
+        const storedToken = localStorage.getItem('access_token');
 
-        // Re-validate token with backend in the background
+        if (storedUser && storedToken && storedUser !== 'undefined' && storedUser !== 'null') {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            if (parsedUser && typeof parsedUser === 'object') {
+              setUser(parsedUser);
+              setToken(storedToken);
+              setLanguage(parsedUser.preferred_language || 'en');
+            }
+          } catch (e) {
+            console.error('Failed to parse cached user', e);
+            localStorage.removeItem('user');
+            localStorage.removeItem('access_token');
+          }
+        }
+      } catch (err) {
+        console.error('Session init error', err);
+      } finally {
+        setLoading(false);
+      }
+
+      // Re-validate token with backend in the background non-blockingly
+      const storedToken = localStorage.getItem('access_token');
+      if (storedToken) {
         try {
           const liveUser = await authAPI.getMe();
-          // If backend returns a real user, update stored data
           if (liveUser && liveUser.id && !liveUser.id?.toString().startsWith('mock')) {
             setUser(liveUser);
             localStorage.setItem('user', JSON.stringify(liveUser));
           }
         } catch {
-          // If 401, clear session and force real login
-          // If backend is simply offline, keep stored user (graceful offline mode)
+          // If offline or network error, keep stored user
         }
       }
-      // No stored session → user stays null → PrivateRoute redirects to /login
-      setLoading(false);
     };
 
     initSession();

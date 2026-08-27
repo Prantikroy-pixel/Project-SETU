@@ -82,7 +82,13 @@ function MainLayout({ children }) {
 // Private Route Guard
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   return user ? <MainLayout>{children}</MainLayout> : <Navigate to="/login" replace />;
 }
 
@@ -90,7 +96,13 @@ function PrivateRoute({ children }) {
 function RoleRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -109,7 +121,13 @@ function RoleRoute({ children, allowedRoles }) {
 // Route accessible only when NOT logged in (redirects authenticated users to their portal)
 function PublicOnlyRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   return user ? <Navigate to="/" replace /> : children;
 }
 
@@ -136,7 +154,7 @@ export default function App() {
             }
           />
 
-          {/* Role specific protected dashboards */}
+          {/* Role specific protected dashboards: strictly isolated per user role */}
           <Route
             path="/dashboard"
             element={
@@ -148,7 +166,7 @@ export default function App() {
           <Route
             path="/officer"
             element={
-              <RoleRoute allowedRoles={['field_officer', 'district_admin', 'admin']}>
+              <RoleRoute allowedRoles={['field_officer']}>
                 <FieldOfficerPortal />
               </RoleRoute>
             }
@@ -156,7 +174,7 @@ export default function App() {
           <Route
             path="/ngo"
             element={
-              <RoleRoute allowedRoles={['ngo', 'district_admin', 'admin']}>
+              <RoleRoute allowedRoles={['ngo']}>
                 <NgoPortal />
               </RoleRoute>
             }
@@ -164,7 +182,7 @@ export default function App() {
           <Route
             path="/operator"
             element={
-              <RoleRoute allowedRoles={['transport_operator', 'district_admin', 'admin']}>
+              <RoleRoute allowedRoles={['transport_operator']}>
                 <TransportPortal />
               </RoleRoute>
             }
@@ -172,7 +190,7 @@ export default function App() {
           <Route
             path="/citizen"
             element={
-              <RoleRoute allowedRoles={['citizen', 'district_admin', 'admin']}>
+              <RoleRoute allowedRoles={['citizen']}>
                 <CitizenPortal />
               </RoleRoute>
             }
