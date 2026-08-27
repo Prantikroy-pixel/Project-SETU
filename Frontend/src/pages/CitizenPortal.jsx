@@ -5,6 +5,7 @@ import { needAPI, alertAPI, conditionAPI, districtAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import MapLocationInspector from '../components/MapLocationInspector';
+import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import { AlertCircle, PlusCircle, CheckCircle, MapPin, Radio, Eye } from 'lucide-react';
 import L from 'leaflet';
 
@@ -374,6 +375,11 @@ export default function CitizenPortal() {
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                {/* Interactive Map Location & Area Search Bar */}
+                <MapPlaceSearchControl
+                  onSelectLocation={(lat, lon) => handleMapClick(lat, lon)}
                 />
 
                 {/* Real-time Color-Coded Incident Impact Area Layer */}

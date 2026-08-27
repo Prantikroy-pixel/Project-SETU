@@ -19,20 +19,57 @@ import {
   Layers,
 } from 'lucide-react';
 
+// High-density highway centerlines strictly following paved NH-6 & NH-27 road geometries
 const PRIMARY_CONVOY_PATH = [
-  { lat: 26.1445, lon: 91.7362, name: 'Guwahati Strategic Logistics Hub' },
-  { lat: 25.5788, lon: 91.8933, name: 'Shillong Bypass Pass' },
-  { lat: 25.4500, lon: 92.2000, name: 'Jowai Checkpoint' },
+  { lat: 26.1158, lon: 91.8214, name: 'Guwahati (Khanapara Logistics Depot)' },
+  { lat: 26.1012, lon: 91.8796, name: 'Jorabat NH-6 Highway Entry' },
+  { lat: 26.0594, lon: 91.8732, name: 'Byrnihat Industrial Corridor' },
+  { lat: 25.9015, lon: 91.8804, name: 'Nongpoh Ri-Bhoi Highway' },
+  { lat: 25.7502, lon: 91.8967, name: 'Umsning 4-Lane Expressway' },
+  { lat: 25.6601, lon: 91.9023, name: 'Umiam Lake Viaduct' },
+  { lat: 25.6410, lon: 91.9420, name: 'Mawlyndep Shillong Bypass Cut' },
+  { lat: 25.6680, lon: 92.0010, name: 'Bhoirymbong Bypass Highway' },
+  { lat: 25.5560, lon: 92.0620, name: 'Mawryngkneng NH-6 Junction' },
+  { lat: 25.5010, lon: 92.1480, name: 'Ummulong Highway Sector' },
+  { lat: 25.4830, lon: 92.1810, name: 'Thadlaskein Lake Highway' },
+  { lat: 25.4450, lon: 92.2080, name: 'Jowai West Jaintia Bypass' },
+  { lat: 25.4120, lon: 92.2750, name: 'Phramer Highway Checkpoint' },
+  { lat: 25.3350, lon: 92.3380, name: 'Lad Rymbai Commercial Pass' },
+  { lat: 25.3110, lon: 92.3680, name: 'Khliehriat East Jaintia HQ' },
   { lat: 25.1812, lon: 92.3800, name: 'Lumshnong Vulnerable Pass' },
-  { lat: 24.8333, lon: 92.7789, name: 'Silchar Central Relief Depot' },
+  { lat: 25.1140, lon: 92.3620, name: 'Sonapur Mountain Highway Tunnel' },
+  { lat: 24.9980, lon: 92.4410, name: 'Malidor Border Transit Post' },
+  { lat: 24.9650, lon: 92.5120, name: 'Gumra Valley Highway' },
+  { lat: 24.9520, lon: 92.5780, name: 'Kalain Main Junction' },
+  { lat: 24.9120, lon: 92.6510, name: 'Hilara Paved Arterial' },
+  { lat: 24.8980, lon: 92.6050, name: 'Badarpur Highway Junction' },
+  { lat: 24.8720, lon: 92.6680, name: 'Panchgram Industrial Road' },
+  { lat: 24.8450, lon: 92.7210, name: 'Srikona NH-6 Arterial' },
+  { lat: 24.8333, lon: 92.7789, name: 'Silchar Central Relief Terminal' },
 ];
 
 const ALTERNATIVE_SAFE_PATH = [
-  { lat: 26.1445, lon: 91.7362, name: 'Guwahati Strategic Logistics Hub' },
-  { lat: 26.3450, lon: 92.6840, name: 'Nagaon Junction' },
-  { lat: 25.7500, lon: 93.1700, name: 'Lumding Safe Bypass Corridor' },
-  { lat: 25.3200, lon: 93.1200, name: 'Maibang Safe Hill Cut' },
-  { lat: 24.8333, lon: 92.7789, name: 'Silchar Central Relief Depot' },
+  { lat: 26.1158, lon: 91.8214, name: 'Guwahati (Khanapara Logistics Depot)' },
+  { lat: 26.1180, lon: 91.9750, name: 'Sonapur 4-Lane Highway' },
+  { lat: 26.1210, lon: 92.2150, name: 'Jagiroad NH-27 Expressway' },
+  { lat: 26.1420, lon: 92.3650, name: 'Dharamtul Arterial' },
+  { lat: 26.1620, lon: 92.5150, name: 'Roha Highway Stretch' },
+  { lat: 26.3450, lon: 92.6840, name: 'Nagaon 4-Lane Flyover Junction' },
+  { lat: 26.1820, lon: 92.8350, name: 'Kathiatoli Highway Sector' },
+  { lat: 26.0450, lon: 92.8980, name: 'Kampur Arterial Road' },
+  { lat: 25.8890, lon: 92.8650, name: 'Dabaka NH-27 / NH-29 Junction' },
+  { lat: 25.9220, lon: 92.9520, name: 'Lanka Bypass Highway' },
+  { lat: 25.7500, lon: 93.1700, name: 'Lumding Safe Strategic Corridor' },
+  { lat: 25.5180, lon: 93.1450, name: 'Langting Hill Highway' },
+  { lat: 25.4320, lon: 93.1320, name: 'Dihakho Valley Road' },
+  { lat: 25.3200, lon: 93.1200, name: 'Maibang Safe Grade Cut' },
+  { lat: 25.2650, lon: 93.0850, name: 'Wadrengdisa Highway Pass' },
+  { lat: 25.1850, lon: 93.1120, name: 'Mahur Four-Lane Cut' },
+  { lat: 25.1680, lon: 93.0250, name: 'Haflong Hill Bypass' },
+  { lat: 25.1210, lon: 93.0480, name: 'Jatinga Protected Corridor' },
+  { lat: 25.0120, lon: 92.8650, name: 'Harangajao Valley Highway' },
+  { lat: 24.8980, lon: 92.7950, name: 'Balacherra Highway Gate' },
+  { lat: 24.8333, lon: 92.7789, name: 'Silchar Central Relief Terminal' },
 ];
 
 export default function LiveGpsTrackerSimulation({ onUpdateSimulationState }) {
@@ -42,7 +79,7 @@ export default function LiveGpsTrackerSimulation({ onUpdateSimulationState }) {
   const [injectedHazard, setInjectedHazard] = useState(null);
   const [scanResult, setScanResult] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [speed, setSpeed] = useState(2500); // ms per waypoint
+  const [speed, setSpeed] = useState(1400); // ms per waypoint for smooth road progression
 
   const activePath = isRerouted ? ALTERNATIVE_SAFE_PATH : PRIMARY_CONVOY_PATH;
   const currentVehiclePos = activePath[Math.min(currentStep, activePath.length - 1)];

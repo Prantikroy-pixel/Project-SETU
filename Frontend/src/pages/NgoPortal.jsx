@@ -5,6 +5,7 @@ import { resourceAPI, matchAPI, districtAPI, conditionAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
+import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import { AlertCircle, CheckCircle, Package, PlusCircle, MapPin, Eye, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -311,6 +312,17 @@ export default function NgoPortal() {
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+
+              {/* Interactive Area / Location Search Bar */}
+              <MapPlaceSearchControl
+                onSelectLocation={(lat, lon) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    latitude: parseFloat(lat.toFixed(5)),
+                    longitude: parseFloat(lon.toFixed(5)),
+                  }))
+                }
               />
 
               {/* Real-time Color-Coded Incident Impact Area Layer */}

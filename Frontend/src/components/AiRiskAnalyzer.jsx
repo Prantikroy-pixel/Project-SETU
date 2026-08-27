@@ -12,6 +12,7 @@ import {
   NER_HIGHWAY_CORRIDORS,
 } from './RiskCorridorMapLayer';
 import MapLocationInspector from './MapLocationInspector';
+import MapPlaceSearchControl from './MapPlaceSearchControl';
 import {
   Cpu,
   Navigation,
@@ -381,6 +382,9 @@ export default function AiRiskAnalyzer({
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+
+                {/* Interactive Map Place Search */}
+                <MapPlaceSearchControl onSelectLocation={handleMapPointSelect} />
 
                 {/* Real-time Incident Impact Zones Layer */}
                 <IncidentImpactZoneLayer conditions={conditions} />

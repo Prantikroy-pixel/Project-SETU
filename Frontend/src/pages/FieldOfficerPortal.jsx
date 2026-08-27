@@ -14,6 +14,7 @@ import {
   NER_HIGHWAY_CORRIDORS,
 } from '../components/RiskCorridorMapLayer';
 import MapLocationInspector from '../components/MapLocationInspector';
+import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import {
   AlertCircle,
   CheckCircle,
@@ -543,7 +544,7 @@ export default function FieldOfficerPortal() {
                     <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
                     {conditions.length} Active Zones
                   </span>
-                  <span className="text-xs text-slate-400 font-semibold italic hidden sm:inline">Click map to target incident</span>
+                  <span className="text-xs text-slate-400 font-semibold italic hidden sm:inline">Click map or search to target incident</span>
                 </div>
               </div>
               <div className="w-full h-full relative" style={{ height: 'calc(100% - 55px)' }}>
@@ -552,6 +553,12 @@ export default function FieldOfficerPortal() {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
+
+                  {/* Interactive Map Location & Area Search Bar */}
+                  <MapPlaceSearchControl
+                    onSelectLocation={(lat, lon) => handleReportMapClick(lat, lon)}
+                  />
+
                   {/* Real-time Color-Coded Incident Impact Area Layer */}
                   <IncidentImpactZoneLayer
                     conditions={conditions}

@@ -415,45 +415,92 @@ export const resourceAPI = {
   },
 };
 
+// Helper for persistent local conditions storage across browser refreshes
+const getPersistedConditions = () => {
+  try {
+    const raw = localStorage.getItem('setu_custom_conditions');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const savePersistedCondition = (item) => {
+  try {
+    const current = getPersistedConditions();
+    const updated = [item, ...current.filter((c) => c.id !== item.id)];
+    localStorage.setItem('setu_custom_conditions', JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to persist condition to local storage', err);
+  }
+};
+
 export const conditionAPI = {
   list: async (filters = {}) => {
+    const localConditions = getPersistedConditions();
     try {
       const res = await apiClient.get('/api/conditions/', { params: filters });
-      return res.data;
+      const apiResults = res.data?.results || (Array.isArray(res.data) ? res.data : []);
+      const existingIds = new Set(apiResults.map((c) => c.id));
+      const combined = [...localConditions.filter((c) => !existingIds.has(c.id)), ...apiResults];
+      return Array.isArray(res.data) ? combined : { ...res.data, results: combined };
     } catch {
-      return mockResponse(MOCK_CONDITIONS);
+      const existingIds = new Set(MOCK_CONDITIONS.map((c) => c.id));
+      const combined = [...localConditions.filter((c) => !existingIds.has(c.id)), ...MOCK_CONDITIONS];
+      return mockResponse(combined);
     }
   },
   create: async (data) => {
+    // Sanitize payload for backend API
+    const sanitizedData = {
+      condition_type: data.condition_type || 'road_status',
+      value: data.value || 'blocked',
+      latitude: parseFloat(data.latitude || 24.83),
+      longitude: parseFloat(data.longitude || 92.78),
+      risk_score: data.risk_score ? parseFloat(data.risk_score) : 0.85,
+      district: data.district ? parseInt(data.district, 10) : null,
+      source: data.source || 'field_report',
+    };
+
+    let resultItem = null;
     try {
-      const res = await apiClient.post('/api/conditions/', data);
-      return res.data;
+      const res = await apiClient.post('/api/conditions/', sanitizedData);
+      resultItem = res.data;
     } catch {
-      const newItem = {
-        ...data,
-        id: MOCK_CONDITIONS.length + 1,
-        location: { type: "Point", coordinates: [data.longitude || 92.78, data.latitude || 24.83], latitude: data.latitude || 24.83, longitude: data.longitude || 92.78 },
-        reported_by_username: MOCK_USER.username,
+      resultItem = {
+        ...sanitizedData,
+        id: Date.now(),
+        location: {
+          type: "Point",
+          coordinates: [sanitizedData.longitude, sanitizedData.latitude],
+          latitude: sanitizedData.latitude,
+          longitude: sanitizedData.longitude
+        },
+        reported_by_username: (JSON.parse(localStorage.getItem('user') || '{}')).username || MOCK_USER.username,
         source: "field_report",
         reported_at: new Date().toISOString(),
         attachments: []
       };
-      MOCK_CONDITIONS.push(newItem);
+      MOCK_CONDITIONS.push(resultItem);
       
       // Auto trigger mock alert on blockages
-      if (data.value === 'blocked') {
+      if (sanitizedData.value === 'blocked') {
         const newAlert = {
-          id: MOCK_ALERTS.length + 1,
+          id: Date.now() + 1,
           alert_type: "road_blocked",
           severity: "critical",
-          message: `CRITICAL: Road obstruction reported. Status: blocked.`,
+          message: `CRITICAL: Road obstruction reported at ${sanitizedData.latitude}, ${sanitizedData.longitude}. Status: blocked.`,
           channel: "app",
           sent_at: new Date().toISOString()
         };
         MOCK_ALERTS.push(newAlert);
       }
-      return mockResponse(newItem);
     }
+
+    if (resultItem) {
+      savePersistedCondition(resultItem);
+    }
+    return resultItem;
   },
   uploadAttachment: async (id, file, mediaType = 'photo') => {
     try {

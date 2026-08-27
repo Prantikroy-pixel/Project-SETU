@@ -7,6 +7,7 @@ import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskCorridorMapLayer, RiskLegendControl, RiskSegmentedRoute, LiveGpsSimulationMapLayer } from '../components/RiskCorridorMapLayer';
 import LiveGpsTrackerSimulation from '../components/LiveGpsTrackerSimulation';
 import MapLocationInspector from '../components/MapLocationInspector';
+import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
   Activity,
@@ -628,6 +629,9 @@ export default function DistrictDashboard() {
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
+
+                    {/* Quick Interactive Map Search Control for Areas, Towns & Districts */}
+                    <MapPlaceSearchControl />
 
                     {/* Real-time Color-Coded Incident Impact Area Layer */}
                     <IncidentImpactZoneLayer conditions={conditions} />

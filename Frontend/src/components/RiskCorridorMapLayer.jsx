@@ -93,16 +93,24 @@ export const NER_HIGHWAY_CORRIDORS = [
   {
     id: 'corridor-nh6-shillong-silchar',
     name: 'NH-6 Meghalaya – Barak Lifeline',
-    section: 'Shillong – Jowai – Haflong Pass – Silchar',
+    section: 'Shillong – Jowai – Lumshnong – Kalain – Silchar',
     baseRisk: 0.82, // Landslide prone mountain corridor
     hazardDetails: 'Severe slope grade (26°), heavy monsoon runoff, saturated hill cut soil.',
     lengthKm: 215,
     path: [
       [25.5788, 91.8933], // Shillong
-      [25.4500, 92.2000], // Jowai
-      [25.3200, 92.4800], // Khliehriat
-      [25.1812, 93.0175], // Haflong / Lumshnong Ridge
-      [24.9600, 92.8900], // Kalain
+      [25.5560, 92.0620], // Mawryngkneng
+      [25.5010, 92.1480], // Ummulong
+      [25.4450, 92.2080], // Jowai
+      [25.4120, 92.2750], // Phramer
+      [25.3350, 92.3380], // Lad Rymbai
+      [25.3110, 92.3680], // Khliehriat
+      [25.1812, 92.3800], // Lumshnong
+      [25.1140, 92.3620], // Sonapur Tunnel
+      [24.9980, 92.4410], // Malidor
+      [24.9520, 92.5780], // Kalain
+      [24.8980, 92.6050], // Badarpur
+      [24.8720, 92.6680], // Panchgram
       [24.8333, 92.7789], // Silchar
     ],
   },
