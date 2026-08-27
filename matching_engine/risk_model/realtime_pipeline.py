@@ -85,6 +85,13 @@ class RealtimeHazardFetcher:
         Fetch real-time / rolling 24-hour precipitation from Open-Meteo Weather API.
         Falls back to climatological estimation if network fails.
         """
+        telemetry = self.fetch_rainfall_telemetry(lat, lon)
+        return telemetry["rainfall_24h"]
+
+    def fetch_rainfall_telemetry(self, lat: float, lon: float) -> Dict[str, float]:
+        """
+        Fetch real-time rolling 24-hour precipitation accumulation and continuous rain duration in hours.
+        """
         try:
             url = (
                 f"https://api.open-meteo.com/v1/forecast?"
@@ -95,17 +102,19 @@ class RealtimeHazardFetcher:
                 data = resp.json()
                 hourly_precip = data.get("hourly", {}).get("precipitation", [])
                 if hourly_precip and len(hourly_precip) >= 24:
-                    # Sum last 24 hours of available rainfall data
-                    past_24h_sum = sum(hourly_precip[:24])
-                    return round(float(past_24h_sum), 2)
-        except Exception as e:
-            # Log and proceed to fallback
+                    last_24 = hourly_precip[:24]
+                    past_24h_sum = sum(last_24)
+                    duration_hrs = sum(1 for p in last_24 if p > 0.2)
+                    return {
+                        "rainfall_24h": round(float(past_24h_sum), 2),
+                        "duration_hours": float(duration_hrs) if duration_hrs > 0 else (round(past_24h_sum / 16.0, 1) if past_24h_sum > 0 else 0.0)
+                    }
+        except Exception:
             pass
 
-        # Robust regional fallback (Assam monsoon/post-monsoon baseline)
-        if 23.0 <= lat <= 29.0 and 88.0 <= lon <= 97.0:
-            return round(18.5 + (math.sin(lat * 10) * 8.0), 2)
-        return 5.0
+        base_rain = round(18.5 + (math.sin(lat * 10) * 8.0), 2) if (23.0 <= lat <= 29.0 and 88.0 <= lon <= 97.0) else 5.0
+        duration_hrs = round(base_rain / 14.0, 1) if base_rain > 0 else 0.0
+        return {"rainfall_24h": base_rain, "duration_hours": duration_hrs}
 
     def fetch_elevation_and_slope(self, lat: float, lon: float) -> Dict[str, float]:
         """

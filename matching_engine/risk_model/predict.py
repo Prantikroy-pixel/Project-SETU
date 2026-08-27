@@ -73,6 +73,7 @@ def _heuristic_risk(
     landslide_condition = (slope >= 15.0 and rainfall >= 55.0) or (slope >= 28.0 and rainfall >= 35.0)
     flood_condition = (slope <= 4.0 and drainage_quality >= 2.0 and rainfall >= 80.0)
     extreme_condition = (rainfall >= 135.0)
+    urban_flood_condition = (drainage_quality <= 1.5 and rainfall >= 50.0 and vegetation_cover <= 0.40)
 
     z = (
         0.028 * rainfall
@@ -85,8 +86,8 @@ def _heuristic_risk(
     )
     prob = 1.0 / (1.0 + math.exp(-z))
 
-    if landslide_condition or flood_condition or extreme_condition:
-        prob = max(prob, 0.72)
+    if landslide_condition or flood_condition or extreme_condition or urban_flood_condition:
+        prob = max(prob, 0.78)
 
     return float(max(0.01, min(0.99, prob)))
 
@@ -109,7 +110,9 @@ def fetch_realtime_features_for_coord(lat: float, lon: float) -> Tuple[Dict[str,
 
     if fetcher is not None:
         try:
-            rain = fetcher.fetch_rainfall_24h(lat, lon)
+            telemetry = fetcher.fetch_rainfall_telemetry(lat, lon)
+            rain = telemetry["rainfall_24h"]
+            rain_dur = telemetry["duration_hours"]
             elev_slope = fetcher.fetch_elevation_and_slope(lat, lon)
             slope = elev_slope["slope"]
             elevation = elev_slope["elevation"]
@@ -119,6 +122,7 @@ def fetch_realtime_features_for_coord(lat: float, lon: float) -> Tuple[Dict[str,
 
             features = {
                 "rainfall": float(rain),
+                "rainfall_duration_hours": float(rain_dur),
                 "slope": float(slope),
                 "elevation": float(elevation),
                 "soil_saturation": round(float(soil_sat), 3),
@@ -135,12 +139,14 @@ def fetch_realtime_features_for_coord(lat: float, lon: float) -> Tuple[Dict[str,
     slope = 22.0 if is_ner and (lat > 27.0 or (lat < 26.0 and lon > 92.0)) else 4.5
     elevation = 650.0 if slope > 15.0 else 90.0
     rain = 15.0
+    rain_dur = 1.0
     drainage = 2.1 if slope <= 5.0 else 1.5
     veg = 0.62 if is_ner else 0.45
     soil_sat = 0.35
 
     features = {
         "rainfall": rain,
+        "rainfall_duration_hours": rain_dur,
         "slope": slope,
         "elevation": elevation,
         "soil_saturation": soil_sat,
@@ -154,6 +160,7 @@ def predict_risk(
     lat: float,
     lon: float,
     rainfall: Optional[float] = None,
+    rainfall_duration_hours: Optional[float] = None,
     slope: Optional[float] = None,
     elevation: Optional[float] = None,
     soil_saturation: Optional[float] = None,
@@ -184,6 +191,8 @@ def predict_risk(
             fetched_features, is_live_fetched = fetch_realtime_features_for_coord(lat, lon)
             if rainfall is None:
                 rainfall = fetched_features["rainfall"]
+            if rainfall_duration_hours is None:
+                rainfall_duration_hours = fetched_features.get("rainfall_duration_hours", 1.0)
             if slope is None:
                 slope = fetched_features["slope"]
             if elevation is None:
@@ -211,6 +220,13 @@ def predict_risk(
 
     # Ensure float types
     rainfall = float(rainfall)
+    if rainfall_duration_hours is None:
+        rainfall_duration_hours = max(1.0, round(rainfall / 16.0, 1)) if rainfall > 0 else 0.0
+    else:
+        rainfall_duration_hours = float(rainfall_duration_hours)
+
+    rainfall_intensity_mm_hr = round(rainfall / max(0.5, rainfall_duration_hours), 1) if rainfall > 0 else 0.0
+
     slope = float(slope)
     elevation = float(elevation)
     soil_saturation = float(soil_saturation)
@@ -240,6 +256,15 @@ def predict_risk(
             rainfall, slope, elevation, soil_saturation, drainage_quality, vegetation_cover
         )
 
+    # Compound Urban Flash Flood Elevation Rule (Guwahati / Silchar / Built Floodplain)
+    urban_flash_flood_condition = (
+        drainage_quality <= 1.5 and
+        vegetation_cover <= 0.40 and
+        (rainfall >= 50.0 or rainfall_duration_hours >= 3.0)
+    )
+    if urban_flash_flood_condition:
+        risk_score = max(risk_score, 0.82)
+
     risk_score = round(max(0.0, min(1.0, risk_score)), 4)
 
     # 3. Classify Risk Severity
@@ -254,10 +279,14 @@ def predict_risk(
 
     # 4. Generate Explainable Factors
     driver_factors = []
-    if rainfall >= 65.0:
-        driver_factors.append(f"Torrential precipitation ({rainfall:.1f} mm/24h)")
+    if urban_flash_flood_condition:
+        driver_factors.append(
+            f"Urban flash flood risk in built basin (sustained rain for {rainfall_duration_hours:.1f}h accumulating {rainfall:.1f}mm at {rainfall_intensity_mm_hr:.1f}mm/h, low drainage {drainage_quality:.2f} km/km², barren vegetation {vegetation_cover:.2f} NDVI)"
+        )
+    elif rainfall >= 65.0:
+        driver_factors.append(f"Torrential precipitation ({rainfall:.1f} mm sustained over {rainfall_duration_hours:.1f}h)")
     elif rainfall >= 35.0:
-        driver_factors.append(f"Moderate-to-heavy rainfall ({rainfall:.1f} mm/24h)")
+        driver_factors.append(f"Sustained rain ({rainfall:.1f} mm over {rainfall_duration_hours:.1f}h)")
 
     if slope >= 25.0:
         driver_factors.append(f"Steep mountain grade ({slope:.1f}° incline)")
@@ -268,10 +297,10 @@ def predict_risk(
         driver_factors.append("High soil water saturation")
     if drainage_quality >= 2.6 and slope <= 4.0:
         driver_factors.append("Flood basin river congestion")
-    elif drainage_quality < 1.3:
+    elif drainage_quality < 1.3 and not urban_flash_flood_condition:
         driver_factors.append("Poor runoff drainage")
 
-    if vegetation_cover <= 0.35:
+    if vegetation_cover <= 0.35 and not urban_flash_flood_condition:
         driver_factors.append("Sparse vegetation / barren topsoil")
 
     if driver_factors:
@@ -289,6 +318,8 @@ def predict_risk(
         'explanation': explanation,
         'features': {
             'rainfall_mm': round(rainfall, 2),
+            'rainfall_duration_hours': round(rainfall_duration_hours, 1),
+            'rainfall_intensity_mm_hr': round(rainfall_intensity_mm_hr, 1),
             'slope_degrees': round(slope, 2),
             'elevation_m': round(elevation, 2),
             'soil_saturation': round(soil_saturation, 3),
@@ -449,6 +480,21 @@ def detect_route_anomalies(
                 'latitude': lat,
                 'longitude': lon,
                 'metric_value': f'{int(soil_sat * 100)}% soil saturation',
+            })
+
+        # 5. Urban Basin Flash Flood Anomaly (Guwahati / Silchar / Concrete Basin)
+        veg = features.get('vegetation_cover', 0.5)
+        rain_dur = features.get('rainfall_duration_hours', round(rain / 16.0, 1)) if rain > 0 else 0.0
+        if drainage <= 1.5 and veg <= 0.40 and (rain >= 50.0 or rain_dur >= 3.0):
+            anomalies.append({
+                'type': 'urban_flash_flood',
+                'severity': 'critical',
+                'title': f'Urban Stormwater Inundation Alert at Km {dist:.1f}',
+                'description': f'Severe urban waterlogging risk in built environment (Guwahati/Silchar sector). Continuous rain for {rain_dur:.1f} hours ({rain:.1f}mm total accumulation) with poor storm drainage ({drainage:.2f} km/km²) and sparse vegetation root cover ({veg:.2f} NDVI).',
+                'distance_km': dist,
+                'latitude': lat,
+                'longitude': lon,
+                'metric_value': f'{rain:.1f}mm over {rain_dur:.1f}h, {drainage:.2f} drainage',
             })
 
     return anomalies
