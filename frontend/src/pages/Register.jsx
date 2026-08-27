@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { districtAPI } from '../api';
 import { ShieldAlert, Compass, CheckCircle2, Clock } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -212,15 +213,15 @@ export default function Register() {
               <label className="block text-label-caps font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                 Account Type *
               </label>
-              <select
+              <CustomSelect
                 name="role"
-                className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/40 rounded-lg text-on-surface focus:outline-none focus:border-primary text-body-sm"
                 value={formData.role}
                 onChange={handleChange}
-              >
-                <option value="citizen">Citizen</option>
-                <option value="ngo">Relief Depot / NGO</option>
-              </select>
+                options={[
+                  { value: 'citizen', label: 'Citizen (Public)', icon: '👤' },
+                  { value: 'ngo', label: 'Relief Depot / NGO', icon: '🏢' },
+                ]}
+              />
               <p className="text-[10px] text-on-surface-variant mt-1">
                 Note: Field Officers & Transport Operators are registered directly by District Command Admins.
               </p>
@@ -230,17 +231,17 @@ export default function Register() {
               <label className="block text-label-caps font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                 Language
               </label>
-              <select
+              <CustomSelect
                 name="preferred_language"
-                className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/40 rounded-lg text-on-surface focus:outline-none focus:border-primary text-body-sm"
                 value={formData.preferred_language}
                 onChange={handleChange}
-              >
-                <option value="en">English</option>
-                <option value="as">অসমীয়া (Assamese)</option>
-                <option value="bn">বাংলা (Bengali)</option>
-                <option value="hi">हिन्दी (Hindi)</option>
-              </select>
+                options={[
+                  { value: 'en', label: 'English', icon: '🌐' },
+                  { value: 'as', label: 'অসমীয়া (Assamese)', icon: '🗣️' },
+                  { value: 'bn', label: 'বাংলা (Bengali)', icon: '🗣️' },
+                  { value: 'hi', label: 'हिन्दी (Hindi)', icon: '🗣️' },
+                ]}
+              />
             </div>
           </div>
 
@@ -248,20 +249,21 @@ export default function Register() {
             <label className="block text-label-caps font-bold uppercase tracking-wider text-on-surface-variant mb-1">
               Duty / Home District
             </label>
-            <select
+            <CustomSelect
               name="district_id"
-              className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/40 rounded-lg text-on-surface focus:outline-none focus:border-primary text-body-sm"
               value={formData.district_id}
               onChange={handleChange}
               disabled={loadingDistricts}
-            >
-              <option value="">Select District (None/General)</option>
-              {districts.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}, {d.state}
-                </option>
-              ))}
-            </select>
+              placeholder="Select District (None/General)"
+              options={[
+                { value: '', label: 'Select District (None/General)', icon: '🌐' },
+                ...districts.map((d) => ({
+                  value: d.id,
+                  label: `${d.name}, ${d.state}`,
+                  icon: '📍',
+                })),
+              ]}
+            />
             {loadingDistricts && <p className="text-xs text-on-surface-variant mt-1">Loading districts...</p>}
           </div>
 

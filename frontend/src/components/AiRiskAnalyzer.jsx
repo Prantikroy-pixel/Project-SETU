@@ -14,6 +14,7 @@ import {
 import MapLocationInspector from './MapLocationInspector';
 import MapPlaceSearchControl from './MapPlaceSearchControl';
 import GoogleMapTileLayer from './GoogleMapTileLayer';
+import CustomSelect from './CustomSelect';
 import {
   Cpu,
   Navigation,
@@ -231,20 +232,18 @@ export default function AiRiskAnalyzer({
                     <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
                       Select Strategic Road Corridor
                     </label>
-                    <select
+                    <CustomSelect
                       value={selectedCorridorId}
                       onChange={(e) => {
                         setSelectedCorridorId(e.target.value);
                         setPredictionResult(null);
                       }}
-                      className="w-full text-xs font-bold border border-slate-300 rounded-lg p-2.5 bg-slate-50 focus:bg-white focus:border-primary-600 focus:outline-none"
-                    >
-                      {NER_HIGHWAY_CORRIDORS.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.lengthKm} km)
-                        </option>
-                      ))}
-                    </select>
+                      options={NER_HIGHWAY_CORRIDORS.map((c) => ({
+                        value: c.id,
+                        label: `${c.name} (${c.lengthKm} km)`,
+                        icon: '🛣️',
+                      }))}
+                    />
                   </div>
 
                   {/* Highway Details Summary Card */}

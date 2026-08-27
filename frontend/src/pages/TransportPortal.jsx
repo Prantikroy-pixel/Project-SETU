@@ -6,6 +6,7 @@ import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '..
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
+import CustomSelect from '../components/CustomSelect';
 import {
   SILCHAR_HAFLONG_HIGHWAY_ROUTE,
   SILCHAR_HAFLONG_GEOJSON,
@@ -309,16 +310,17 @@ export default function TransportPortal() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Classification</label>
-                <select
+                <CustomSelect
+                  name="vehicle_type"
                   value={newVehicle.vehicle_type}
                   onChange={(e) => setNewVehicle({ ...newVehicle, vehicle_type: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
-                >
-                  <option value="5-Ton 4x4 Heavy Relief Truck">5-Ton 4x4 Heavy Relief Truck</option>
-                  <option value="10-Ton Logistics Carrier">10-Ton Logistics Carrier</option>
-                  <option value="Amphibious All-Terrain Unit">Amphibious All-Terrain Unit</option>
-                  <option value="Emergency Medical Van">Emergency Medical Van</option>
-                </select>
+                  options={[
+                    { value: '5-Ton 4x4 Heavy Relief Truck', label: '5-Ton 4x4 Heavy Relief Truck', icon: '🚚' },
+                    { value: '10-Ton Logistics Carrier', label: '10-Ton Logistics Carrier', icon: '🚛' },
+                    { value: 'Amphibious All-Terrain Unit', label: 'Amphibious All-Terrain Unit', icon: '🚤' },
+                    { value: 'Emergency Medical Van', label: 'Emergency Medical Van', icon: '🚐' },
+                  ]}
+                />
               </div>
 
               <button

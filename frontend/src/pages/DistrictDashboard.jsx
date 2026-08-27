@@ -9,6 +9,7 @@ import LiveGpsTrackerSimulation from '../components/LiveGpsTrackerSimulation';
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
+import CustomSelect from '../components/CustomSelect';
 import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
   Activity,
@@ -831,18 +832,18 @@ export default function DistrictDashboard() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-black text-slate-900 text-sm">{Math.round(m.score * 100)}% Fit</span>
-                          <select
-                            className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs"
-                            value={selectedVehicle}
-                            onChange={(e) => setSelectedVehicle(e.target.value)}
-                          >
-                            <option value="">Vehicle...</option>
-                            {vehicles.map((v) => (
-                              <option key={v.id} value={v.id}>
-                                {v.registration_number} ({v.vehicle_type})
-                              </option>
-                            ))}
-                          </select>
+                          <div className="w-44">
+                            <CustomSelect
+                              value={selectedVehicle}
+                              onChange={(e) => setSelectedVehicle(e.target.value)}
+                              placeholder="Assign Vehicle..."
+                              options={vehicles.map((v) => ({
+                                value: v.id,
+                                label: `${v.registration_number} (${v.vehicle_type})`,
+                                icon: '🚚',
+                              }))}
+                            />
+                          </div>
                           <button
                             onClick={() => handleConfirmMatch(m.id)}
                             className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-md shadow-sm transition-colors"
@@ -1109,18 +1110,20 @@ export default function DistrictDashboard() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Assigned Duty District</label>
-                  <select
+                  <CustomSelect
+                    name="district_id"
                     value={transporterForm.district_id}
                     onChange={(e) => setTransporterForm({ ...transporterForm, district_id: e.target.value })}
-                    className="w-full text-xs border border-slate-200 rounded-md p-2 bg-white font-semibold"
-                  >
-                    <option value="">General / All Districts</option>
-                    {districts.map((d) => (
-                      <option key={d.district_id} value={d.district_id}>
-                        {d.name} ({d.state})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="General / All Districts"
+                    options={[
+                      { value: '', label: 'General / All Districts', icon: '🌐' },
+                      ...districts.map((d) => ({
+                        value: d.district_id,
+                        label: `${d.name} (${d.state})`,
+                        icon: '📍',
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 pt-1">
                   <button
@@ -1236,32 +1239,35 @@ export default function DistrictDashboard() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Vehicle Type *</label>
-                  <select
+                  <CustomSelect
+                    name="vehicle_type"
                     value={vehicleForm.vehicle_type}
                     onChange={(e) => setVehicleForm({ ...vehicleForm, vehicle_type: e.target.value })}
-                    className="w-full text-xs border border-slate-200 rounded-md p-2 bg-white font-semibold"
-                  >
-                    <option value="5-Ton Truck">5-Ton Truck</option>
-                    <option value="4x4 Offroad Pickup">4x4 Offroad Pickup</option>
-                    <option value="Relief Boat">Relief Boat / Raft</option>
-                    <option value="Ambulance / Medical Unit">Ambulance / Medical Unit</option>
-                    <option value="Heavy Machinery">Heavy Excavator / Machinery</option>
-                  </select>
+                    options={[
+                      { value: '5-Ton Truck', label: '5-Ton Truck', icon: '🚚' },
+                      { value: '4x4 Offroad Pickup', label: '4x4 Offroad Pickup', icon: '🛻' },
+                      { value: 'Relief Boat', label: 'Relief Boat / Raft', icon: '🚤' },
+                      { value: 'Ambulance / Medical Unit', label: 'Ambulance / Medical Unit', icon: '🚑' },
+                      { value: 'Heavy Machinery', label: 'Heavy Excavator / Machinery', icon: '🚜' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Assigned Transporter (Optional)</label>
-                  <select
+                  <CustomSelect
+                    name="operator_id"
                     value={vehicleForm.operator_id}
                     onChange={(e) => setVehicleForm({ ...vehicleForm, operator_id: e.target.value })}
-                    className="w-full text-xs border border-slate-200 rounded-md p-2 bg-white"
-                  >
-                    <option value="">Select Transport Operator</option>
-                    {transporterList.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        @{t.username} ({t.first_name || 'Operator'})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select Transport Operator"
+                    options={[
+                      { value: '', label: 'Unassigned / Depot Standby', icon: '⚪' },
+                      ...transporterList.map((t) => ({
+                        value: t.id,
+                        label: `@${t.username} (${t.first_name || 'Operator'})`,
+                        icon: '👤',
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className="sm:col-span-3 flex justify-end gap-2 pt-1">
                   <button
@@ -1428,18 +1434,20 @@ export default function DistrictDashboard() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Duty District</label>
-                  <select
+                  <CustomSelect
+                    name="district_id"
                     value={officerForm.district_id}
                     onChange={(e) => setOfficerForm({ ...officerForm, district_id: e.target.value })}
-                    className="w-full text-xs border border-slate-200 rounded-md p-2 bg-white font-semibold"
-                  >
-                    <option value="">General / All Districts</option>
-                    {districts.map((d) => (
-                      <option key={d.district_id} value={d.district_id}>
-                        {d.name} ({d.state})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="General / All Districts"
+                    options={[
+                      { value: '', label: 'General / All Districts', icon: '🌐' },
+                      ...districts.map((d) => ({
+                        value: d.district_id,
+                        label: `${d.name} (${d.state})`,
+                        icon: '📍',
+                      })),
+                    ]}
+                  />
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 pt-1">
                   <button

@@ -16,6 +16,7 @@ import {
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
+import CustomSelect from '../components/CustomSelect';
 import {
   AlertCircle,
   CheckCircle,
@@ -386,35 +387,35 @@ export default function FieldOfficerPortal() {
                   <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                     Condition Type
                   </label>
-                  <select
+                  <CustomSelect
                     name="condition_type"
                     value={reportForm.condition_type}
                     onChange={handleReportChange}
-                    className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
-                  >
-                    <option value="road_status">Road Status / Obstruction</option>
-                    <option value="rainfall">Rainfall Ingress (mm)</option>
-                    <option value="landslide_risk">Landslide Risk Level</option>
-                    <option value="traffic">Traffic Corridor Congestion</option>
-                  </select>
+                    options={[
+                      { value: 'road_status', label: 'Road Status / Obstruction', icon: '🚧' },
+                      { value: 'rainfall', label: 'Rainfall Ingress (mm)', icon: '🌧️' },
+                      { value: 'landslide_risk', label: 'Landslide Risk Level', icon: '⛰️' },
+                      { value: 'traffic', label: 'Traffic Corridor Congestion', icon: '🚗' },
+                    ]}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                     Status / Value
                   </label>
-                  <select
+                  <CustomSelect
                     name="value"
                     value={reportForm.value}
                     onChange={handleReportChange}
-                    className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
-                  >
-                    <option value="blocked">Blocked / Impassable</option>
-                    <option value="flooded">Flooded / High Inundation</option>
-                    <option value="landslide">Active Landslide Cut-off</option>
-                    <option value="clear">Clear / Passable</option>
-                    <option value="closed">Closed by SDRF/District Admin</option>
-                  </select>
+                    options={[
+                      { value: 'blocked', label: 'Blocked / Impassable', icon: '⛔' },
+                      { value: 'flooded', label: 'Flooded / High Inundation', icon: '🌊' },
+                      { value: 'landslide', label: 'Active Landslide Cut-off', icon: '⚠️' },
+                      { value: 'clear', label: 'Clear / Passable', icon: '✅' },
+                      { value: 'closed', label: 'Closed by SDRF/District Admin', icon: '🛑' },
+                    ]}
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -422,19 +423,13 @@ export default function FieldOfficerPortal() {
                     <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                       District
                     </label>
-                    <select
+                    <CustomSelect
                       name="district"
                       value={reportForm.district}
                       onChange={handleReportChange}
-                      className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
-                    >
-                      <option value="">Select District</option>
-                      {districts.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Select District"
+                      options={districts.map((d) => ({ value: d.id, label: d.name, icon: '📍' }))}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">

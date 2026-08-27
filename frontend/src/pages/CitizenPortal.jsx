@@ -7,6 +7,7 @@ import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
+import CustomSelect from '../components/CustomSelect';
 import { AlertCircle, PlusCircle, CheckCircle, MapPin, Radio, Eye } from 'lucide-react';
 import L from 'leaflet';
 
@@ -204,19 +205,19 @@ export default function CitizenPortal() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                   Resource Type
                 </label>
-                <select
+                <CustomSelect
                   name="type"
                   value={form.type}
                   onChange={handleInputChange}
-                  className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
-                >
-                  <option value="food">Food Supplies</option>
-                  <option value="water">Drinking Water</option>
-                  <option value="medicine">Medical Supplies & Medicines</option>
-                  <option value="construction_material">Construction & Shelter Material</option>
-                  <option value="agricultural_produce">Agricultural Produce / Seeds</option>
-                  <option value="other">Other Essential Resource</option>
-                </select>
+                  options={[
+                    { value: 'food', label: 'Food Supplies', icon: '🍚' },
+                    { value: 'water', label: 'Drinking Water', icon: '💧' },
+                    { value: 'medicine', label: 'Medical Supplies & Medicines', icon: '💊' },
+                    { value: 'construction_material', label: 'Construction & Shelter Material', icon: '🏗️' },
+                    { value: 'agricultural_produce', label: 'Agricultural Produce / Seeds', icon: '🌾' },
+                    { value: 'other', label: 'Other Essential Resource', icon: '📦' },
+                  ]}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -253,35 +254,29 @@ export default function CitizenPortal() {
                   <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                     Urgency
                   </label>
-                  <select
+                  <CustomSelect
                     name="urgency"
                     value={form.urgency}
                     onChange={handleInputChange}
-                    className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
-                  >
-                    <option value="critical">Critical (Immediate)</option>
-                    <option value="high">High (Within 6-12h)</option>
-                    <option value="medium">Medium (Within 24-48h)</option>
-                    <option value="low">Low (Routine)</option>
-                  </select>
+                    options={[
+                      { value: 'critical', label: 'Critical (Immediate)', icon: '🚨' },
+                      { value: 'high', label: 'High (Within 6-12h)', icon: '⚡' },
+                      { value: 'medium', label: 'Medium (Within 24-48h)', icon: '⏳' },
+                      { value: 'low', label: 'Low (Routine)', icon: '📋' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
                     District
                   </label>
-                  <select
+                  <CustomSelect
                     name="district"
                     value={form.district}
                     onChange={handleInputChange}
-                    className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
-                  >
-                    <option value="">Select District</option>
-                    {districts.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select District"
+                    options={districts.map((d) => ({ value: d.id, label: d.name, icon: '📍' }))}
+                  />
                 </div>
               </div>
 
