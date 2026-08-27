@@ -8,7 +8,7 @@ from .views import (
     DistrictViewSet, NeedViewSet, ResourceViewSet,
     ConditionViewSet, AllocationViewSet, AlertViewSet,
     InstitutionViewSet, BorderBoundaryView, BorderProximityView,
-    RouteBorderAnalysisView, DistrictBoundaryView, StateBoundaryView,
+    RouteBorderAnalysisView, RouteHazardScanView, DistrictBoundaryView, StateBoundaryView,
     SyncDistrictBoundariesView
 )
 
@@ -31,5 +31,7 @@ urlpatterns = [
     path('boundaries/ner-borders/', BorderBoundaryView.as_view(), name='ner-borders'),
     path('boundaries/check-proximity/', BorderProximityView.as_view(), name='border-proximity'),
     path('boundaries/analyze-route/', RouteBorderAnalysisView.as_view(), name='border-route-analysis'),
+    path('boundaries/scan-route/', RouteHazardScanView.as_view(), name='scan-route'),
     path('', include(router.urls)),
 ]
+

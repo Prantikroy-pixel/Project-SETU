@@ -622,4 +622,137 @@ export function RiskSegmentedRoute({
   );
 }
 
+export function LiveGpsSimulationMapLayer({ simulationState }) {
+  if (!simulationState || !simulationState.vehiclePos) return null;
+
+  const { vehiclePos, currentPath, isRerouted, injectedHazard, scanMetrics } = simulationState;
+
+  const pathCoordinates = currentPath.map((pt) => [pt.lat, pt.lon]);
+
+  // Create pulsing Vehicle Marker Icon
+  const createVehicleDivIcon = () => {
+    const iconHtml = `
+      <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+        <!-- Pulsing Radar Glow Ring -->
+        <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: ${
+          isRerouted ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'
+        }; border: 2px solid ${
+          isRerouted ? '#10B981' : '#3B82F6'
+        }; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <!-- Inner Convoy Badge -->
+        <div style="width: 26px; height: 26px; border-radius: 50%; background: ${
+          isRerouted ? '#059669' : '#2563EB'
+        }; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="3" width="15" height="13"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+        </div>
+      </div>
+    `;
+    return L.divIcon({
+      html: iconHtml,
+      className: 'custom-vehicle-div-icon',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+  };
+
+  // Create Hazard Alert Icon
+  const createHazardDivIcon = () => {
+    const iconHtml = `
+      <div style="position: relative; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 38px; height: 38px; border-radius: 50%; background: rgba(220, 38, 38, 0.4); border: 2px solid #DC2626; animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: #DC2626; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(220,38,38,0.6);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+      </div>
+    `;
+    return L.divIcon({
+      html: iconHtml,
+      className: 'custom-hazard-div-icon',
+      iconSize: [38, 38],
+      iconAnchor: [19, 19],
+    });
+  };
+
+  return (
+    <>
+      {/* Dynamic Active Simulation Route Polyline */}
+      <Polyline
+        positions={pathCoordinates}
+        pathOptions={{
+          color: '#ffffff',
+          weight: 7,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      />
+      <Polyline
+        positions={pathCoordinates}
+        pathOptions={{
+          color: isRerouted ? '#10B981' : scanMetrics?.riskScore >= 0.70 ? '#EF4444' : '#3B82F6',
+          weight: 5,
+          opacity: 0.95,
+          dashArray: isRerouted ? '8, 6' : undefined,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      >
+        <Popup>
+          <div className="text-xs p-1 space-y-1">
+            <div className="font-bold text-slate-900">
+              {isRerouted ? 'NH-27 Lumding Safe Bypass Corridor' : 'NH-6 Meghalaya – Barak Lifeline'}
+            </div>
+            <div className="text-slate-600">
+              Status: {isRerouted ? 'Active Automated Bypass' : 'Primary Convoy Path'}
+            </div>
+          </div>
+        </Popup>
+      </Polyline>
+
+      {/* Injected Hazard Obstruction Marker */}
+      {injectedHazard && (
+        <Marker position={[injectedHazard.lat, injectedHazard.lon]} icon={createHazardDivIcon()}>
+          <Popup>
+            <div className="text-xs p-1 space-y-1.5" style={{ maxWidth: '200px' }}>
+              <div className="font-bold text-red-600 flex items-center gap-1">
+                <span>⚠️</span> {injectedHazard.title}
+              </div>
+              <p className="text-slate-700 text-[11px]">
+                Active landslide blockage on NH-6 Lumshnong pass. Road impassable.
+              </p>
+              <div className="bg-red-50 text-red-800 text-[10px] font-bold p-1 rounded border border-red-200">
+                AI Reroute Triggered
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      )}
+
+      {/* Moving Convoy Vehicle GPS Marker */}
+      <Marker position={[vehiclePos.lat, vehiclePos.lon]} icon={createVehicleDivIcon()}>
+        <Popup>
+          <div className="text-xs p-1 space-y-1">
+            <div className="font-extrabold text-blue-700 text-sm">AS-11-BC-4401</div>
+            <div className="text-slate-700 font-medium">5-Ton 4x4 Heavy Relief Convoy</div>
+            <div className="text-slate-500 text-[10px]">{vehiclePos.name}</div>
+            <div className="text-slate-600 text-[11px] pt-1 border-t border-slate-100 font-semibold">
+              Location: {vehiclePos.lat.toFixed(4)}°N, {vehiclePos.lon.toFixed(4)}°E
+            </div>
+          </div>
+        </Popup>
+      </Marker>
+    </>
+  );
+}
+
 export default RiskCorridorMapLayer;
+

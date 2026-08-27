@@ -1031,6 +1031,49 @@ export const boundaryAPI = {
       });
     }
   },
+  scanRoute: async (routePoints, injectedHazard = null) => {
+    try {
+      const res = await apiClient.post('/api/boundaries/scan-route/', {
+        route_points: routePoints,
+        injected_hazard: injectedHazard,
+      });
+      return res.data;
+    } catch {
+      const hasHazard = Boolean(injectedHazard);
+      return mockResponse({
+        primary_route_scan: {
+          route_composite_risk: hasHazard ? 0.84 : 0.22,
+          threat_level: hasHazard ? "critical" : "low",
+          status_label: hasHazard ? "Near-Blockage Alert (Imminent Disruption)" : "Safe / Clear Corridor",
+          is_critical_threat: hasHazard,
+          detected_anomalies: hasHazard ? [{
+            type: "landslide_threat",
+            severity: "critical",
+            title: "Critical Landslide Hazard Detected Ahead",
+            description: "Steep mountain incline (28.5°) with elevated rainfall (88.0mm). Road closure imminent.",
+            distance_km: 68.4,
+            metric_value: "28.5° slope, 88.0mm rain"
+          }] : [],
+          range_summary: hasHazard ? "Primary Route Blocked. High risk of landslide on Lumshnong pass." : "Primary Route Clear and optimal."
+        },
+        has_hazard_blockage: hasHazard,
+        alternative_route: hasHazard ? {
+          corridor_name: "NH-27 / Lumding Safe Bypass Corridor",
+          waypoints: [
+            { lat: 26.1445, lon: 91.7362, name: "Guwahati Strategic Hub" },
+            { lat: 26.3450, lon: 92.6840, name: "Nagaon Junction" },
+            { lat: 25.7500, lon: 93.1700, name: "Lumding Bypass Corridor" },
+            { lat: 25.3200, lon: 93.1200, name: "Maibang Safe Cut" },
+            { lat: 24.8333, lon: 92.7789, name: "Silchar Destination Depot" }
+          ],
+          scan_summary: { route_composite_risk: 0.22, threat_level: "low" },
+          distance_km: 340.5,
+          estimated_delay_avoided_mins: 180
+        } : null,
+        scanned_at: new Date().toISOString()
+      });
+    }
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

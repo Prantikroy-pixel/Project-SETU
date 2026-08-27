@@ -4,7 +4,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { dashboardAPI, needAPI, vehicleAPI, matchAPI, boundaryAPI, authAPI, resourceAPI, conditionAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
-import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
+import { RiskCorridorMapLayer, RiskLegendControl, RiskSegmentedRoute, LiveGpsSimulationMapLayer } from '../components/RiskCorridorMapLayer';
+import LiveGpsTrackerSimulation from '../components/LiveGpsTrackerSimulation';
 import MapLocationInspector from '../components/MapLocationInspector';
 import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
@@ -39,6 +40,9 @@ export default function DistrictDashboard() {
   const [selectedVehicle, setSelectedVehicle] = useState('');
   const [loading, setLoading] = useState(false);
   const [matchingLoading, setMatchingLoading] = useState(false);
+
+  // Live GPS Simulation state
+  const [simulationState, setSimulationState] = useState(null);
 
   // Directory state lists
   const [ngoList, setNgoList] = useState([]);
@@ -600,6 +604,9 @@ export default function DistrictDashboard() {
                     {/* Interactive Real-Time Map Location & AI Hazard Inspector */}
                     <MapLocationInspector conditions={conditions} />
 
+                    {/* Live GPS Telemetry Convoy & Reroute Simulation Layer */}
+                    <LiveGpsSimulationMapLayer simulationState={simulationState} />
+
                     {/* Audited Route Paths if present */}
                     {parsedRouteCoords.length >= 2 && (
                       <RiskSegmentedRoute
@@ -669,6 +676,9 @@ export default function DistrictDashboard() {
                   <IncidentSeverityLegend totalIncidents={conditions.length} className="absolute bottom-3 right-3 shadow-xl" />
                 </div>
               </div>
+
+              {/* Live GPS Convoy Telemetry, AI Route Hazard Scanner & Auto-Reroute Simulation Engine */}
+              <LiveGpsTrackerSimulation onUpdateSimulationState={setSimulationState} />
 
               {/* AI Matcher & Dispatcher */}
               <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
