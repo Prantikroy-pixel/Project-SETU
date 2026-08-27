@@ -390,13 +390,30 @@ export default function NgoPortal() {
                         <td className="px-4 py-3">{r.district_name || 'General'}</td>
                         <td className="px-4 py-3">
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                              r.verification_status === 'verified_org'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-yellow-100 text-yellow-800'
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1 ${
+                              r.verification_status === 'approved' || r.verification_status === 'verified_org'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : r.verification_status === 'debarred'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
                             }`}
                           >
-                            {r.verification_status ? r.verification_status.replace('_', ' ') : 'Pending'}
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                r.verification_status === 'approved' || r.verification_status === 'verified_org'
+                                  ? 'bg-emerald-600'
+                                  : r.verification_status === 'debarred'
+                                  ? 'bg-rose-600'
+                                  : 'bg-amber-600'
+                              }`}
+                            ></span>
+                            <span>
+                              {r.verification_status === 'approved' || r.verification_status === 'verified_org'
+                                ? 'Approved & Active'
+                                : r.verification_status === 'debarred'
+                                ? 'Debarred by Admin'
+                                : 'Pending Approval'}
+                            </span>
                           </span>
                         </td>
                       </tr>

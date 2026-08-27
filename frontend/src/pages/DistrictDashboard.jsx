@@ -10,6 +10,7 @@ import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
 import CustomSelect from '../components/CustomSelect';
+import DistrictAdminNotificationFeed from '../components/DistrictAdminNotificationFeed';
 import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
   Activity,
@@ -65,6 +66,33 @@ export default function DistrictDashboard() {
 
   // Shared alert status
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
+  const [stockFilter, setStockFilter] = useState('all');
+
+  const handleApproveResource = async (id) => {
+    try {
+      await resourceAPI.approve(id);
+      fetchDashboardData();
+      fetchAdminListData();
+      setStatusMsg({ text: `Stockpile #${id} approved & verified for active distribution.`, type: 'success' });
+    } catch (err) {
+      console.error('Failed to approve resource', err);
+      setStatusMsg({ text: `Approval failed for stockpile #${id}`, type: 'error' });
+    }
+  };
+
+  const handleDebarResource = async (id) => {
+    const reason = window.prompt('Specify reason for debarring this stockpile:', 'Compliance standard check failed');
+    if (reason === null) return;
+    try {
+      await resourceAPI.debar(id, reason);
+      fetchDashboardData();
+      fetchAdminListData();
+      setStatusMsg({ text: `Stockpile #${id} debarred (${reason}).`, type: 'info' });
+    } catch (err) {
+      console.error('Failed to debar resource', err);
+      setStatusMsg({ text: `Debar failed for stockpile #${id}`, type: 'error' });
+    }
+  };
 
   // Provision Transporter Form State
   const [transporterForm, setTransporterForm] = useState({
@@ -401,17 +429,29 @@ export default function DistrictDashboard() {
           </p>
         </div>
 
-        {/* Refresh Action */}
-        <button
-          onClick={() => {
-            fetchDashboardData();
-            fetchAdminListData();
-          }}
-          className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg shadow-sm transition-colors w-fit"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh Data</span>
-        </button>
+        <div className="flex items-center gap-2 w-fit">
+          {/* Real-time Operation Alerts & Verification Feed */}
+          <DistrictAdminNotificationFeed
+            onApproveStock={handleApproveResource}
+            onDebarStock={handleDebarResource}
+            onRefreshData={() => {
+              fetchDashboardData();
+              fetchAdminListData();
+            }}
+          />
+
+          {/* Refresh Action */}
+          <button
+            onClick={() => {
+              fetchDashboardData();
+              fetchAdminListData();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh Data</span>
+          </button>
+        </div>
       </div>
 
       {/* Segmented Controller Tab Strip */}
@@ -512,8 +552,14 @@ export default function DistrictDashboard() {
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5 text-slate-700" />
-          <span>Govt Stockpiles</span>
-          <span className="bg-slate-200/70 text-slate-700 text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+          <span>Stockpile Verification Hub</span>
+          <span
+            className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+              resourceList.some((r) => r.verification_status === 'pending' || !r.verification_status)
+                ? 'bg-amber-500 text-slate-950 animate-pulse'
+                : 'bg-slate-200/70 text-slate-700'
+            }`}
+          >
             {resourceList.length}
           </span>
         </button>
@@ -1511,57 +1557,168 @@ export default function DistrictDashboard() {
         </div>
       )}
 
-      {/* VIEW 6: GOVT STOCKPILES */}
+      {/* VIEW 6: NGO & GOVT STOCKPILE VERIFICATION HUB */}
       {activeTab === 'stock' && (
         <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-slate-700" />
-                <span>Government Relief Stockpiles</span>
-              </h2>
-              <p className="text-xs text-slate-500">
-                Verified state emergency reserves, warehouse stockpiles, and disaster mitigation inventory.
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                <h2 className="text-base font-extrabold text-slate-900">
+                  NGO & Relief Stockpile Verification & Quality Control
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Review submitted NGO relief supplies, verify compliance standards, and authorize or debar stockpiles for emergency allocation matching.
               </p>
             </div>
-            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-1 rounded-full">
-              {resourceList.length} Verified Stockpiles
-            </span>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs">
+              {[
+                { id: 'all', label: `All Stock (${resourceList.length})` },
+                {
+                  id: 'pending',
+                  label: `Pending Verification (${resourceList.filter((r) => r.verification_status === 'pending' || !r.verification_status).length})`,
+                  highlight: resourceList.some((r) => r.verification_status === 'pending' || !r.verification_status),
+                },
+                {
+                  id: 'approved',
+                  label: `Approved (${resourceList.filter((r) => r.verification_status === 'approved' || r.verification_status === 'verified_org').length})`,
+                },
+                {
+                  id: 'debarred',
+                  label: `Debarred (${resourceList.filter((r) => r.verification_status === 'debarred').length})`,
+                },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setStockFilter(f.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                    stockFilter === f.id
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                      : f.highlight
+                      ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {/* Stockpiles Table */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50/80 text-slate-500 uppercase font-bold text-[10px] border-b border-slate-200/60">
                 <tr>
-                  <th className="p-3">Stockpile Resource Name</th>
-                  <th className="p-3">Category / Type</th>
-                  <th className="p-3">Available Quantity</th>
-                  <th className="p-3">Unit</th>
-                  <th className="p-3">Assigned District</th>
-                  <th className="p-3 text-right">Provider Depot</th>
+                  <th className="p-3.5">Stockpile Item</th>
+                  <th className="p-3.5">Type</th>
+                  <th className="p-3.5">Available Quantity</th>
+                  <th className="p-3.5">Depot Location</th>
+                  <th className="p-3.5">Provider / NGO</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5 text-right">Verification Authority</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {resourceList.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="p-6 text-center text-slate-400 italic">
-                      No government stockpile entries listed in system.
-                    </td>
-                  </tr>
-                ) : (
-                  resourceList.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-3 font-bold text-slate-900">{r.name || r.item_type || `Resource #${r.id}`}</td>
-                      <td className="p-3 font-semibold text-slate-700 uppercase">{r.category || r.item_type || 'General'}</td>
-                      <td className="p-3 font-black text-emerald-700 text-sm">{r.quantity_available || r.quantity}</td>
-                      <td className="p-3 text-slate-600 uppercase">{r.unit || 'units'}</td>
-                      <td className="p-3 font-semibold text-slate-700">{r.district_name || 'NER Warehouse Depot'}</td>
-                      <td className="p-3 text-right text-slate-600 font-medium">
-                        @{r.provider_username || r.provider || 'State Command'}
-                      </td>
-                    </tr>
-                  ))
-                )}
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {resourceList
+                  .filter((r) => {
+                    if (stockFilter === 'pending') return r.verification_status === 'pending' || !r.verification_status;
+                    if (stockFilter === 'approved') return r.verification_status === 'approved' || r.verification_status === 'verified_org';
+                    if (stockFilter === 'debarred') return r.verification_status === 'debarred';
+                    return true;
+                  })
+                  .map((r) => {
+                    const isApproved = r.verification_status === 'approved' || r.verification_status === 'verified_org';
+                    const isDebarred = r.verification_status === 'debarred';
+                    const isPending = !isApproved && !isDebarred;
+
+                    return (
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-3.5 font-bold text-slate-900">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">
+                              {r.type === 'food' ? '🍚' : r.type === 'water' ? '💧' : r.type === 'medicine' ? '💊' : r.type === 'construction_material' ? '🏗️' : '📦'}
+                            </span>
+                            <span>{r.name || r.item_type || `${r.type ? r.type.replace('_', ' ') : 'Resource'} Stock #${r.id}`}</span>
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-semibold text-slate-700 uppercase text-[11px]">{r.type ? r.type.replace('_', ' ') : 'General'}</td>
+                        <td className="p-3.5 font-black text-emerald-700 text-sm">
+                          {r.quantity_available || r.quantity} <span className="text-xs font-normal text-slate-500">{r.unit || 'units'}</span>
+                        </td>
+                        <td className="p-3.5 font-semibold text-slate-700">{r.district_name || 'Cachar / NER Hub'}</td>
+                        <td className="p-3.5 text-slate-700 font-bold">
+                          @{r.provider_username || r.provider || 'redcross_assam'}
+                        </td>
+                        <td className="p-3.5">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1.5 ${
+                              isApproved
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : isDebarred
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                isApproved ? 'bg-emerald-600' : isDebarred ? 'bg-rose-600' : 'bg-amber-600'
+                              }`}
+                            ></span>
+                            <span>{isApproved ? 'Approved & Active' : isDebarred ? 'Debarred' : 'Pending Review'}</span>
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveResource(r.id)}
+                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  <span>Approve</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDebarResource(r.id)}
+                                  className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  <span>Debar</span>
+                                </button>
+                              </>
+                            )}
+
+                            {isApproved && (
+                              <button
+                                type="button"
+                                onClick={() => handleDebarResource(r.id)}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                              >
+                                Revoke / Debar
+                              </button>
+                            )}
+
+                            {isDebarred && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveResource(r.id)}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                              >
+                                Re-verify & Restore
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

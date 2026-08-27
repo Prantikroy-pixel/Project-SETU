@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { emitRealtimeEvent } from './utils/notificationSystem';
 
 // When VITE_API_URL is empty, use '' in dev so Vite's dev proxy intercepts /api/* calls
 // In production, fallback to the deployed Vercel backend URL
@@ -801,22 +802,28 @@ export const needAPI = {
     }
   },
   create: async (data) => {
+    let newItem = null;
     try {
       const res = await apiClient.post('/api/needs/', data);
-      return res.data;
+      newItem = res.data;
     } catch {
-      const newItem = {
+      newItem = {
         ...data,
         id: MOCK_NEEDS.length + 1,
         location: { type: "Point", coordinates: [data.longitude || 92.78, data.latitude || 24.83], latitude: data.latitude || 24.83, longitude: data.longitude || 92.78 },
-        reported_by_username: MOCK_USER.username,
+        reported_by_username: (JSON.parse(localStorage.getItem('user') || '{}')).username || MOCK_USER.username,
         status: "open",
         attachments: [],
         created_at: new Date().toISOString()
       };
-      MOCK_NEEDS.push(newItem);
-      return mockResponse(newItem);
+      MOCK_NEEDS.unshift(newItem);
     }
+    emitRealtimeEvent('NEED_REQUESTED', {
+      title: `Emergency Need: ${newItem.type.toUpperCase()}`,
+      message: `Citizen requested ${newItem.quantity} ${newItem.unit} of ${newItem.type} (${newItem.urgency} urgency).`,
+      need: newItem,
+    });
+    return newItem;
   },
   uploadAttachment: async (id, file, mediaType = 'photo') => {
     try {
@@ -868,29 +875,147 @@ export const needAPI = {
   },
 };
 
+// Helper for persistent local resources storage across browser refreshes
+const getPersistedResources = () => {
+  try {
+    const raw = localStorage.getItem('setu_custom_resources');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const savePersistedResource = (item) => {
+  try {
+    const current = getPersistedResources();
+    const updated = [item, ...current.filter((r) => r.id !== item.id)];
+    localStorage.setItem('setu_custom_resources', JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to persist resource to local storage', err);
+  }
+};
+
 export const resourceAPI = {
   list: async (filters = {}) => {
+    const localResources = getPersistedResources();
     try {
       const res = await apiClient.get('/api/resources/', { params: filters });
-      return res.data;
+      const apiResults = res.data?.results || (Array.isArray(res.data) ? res.data : []);
+      const existingIds = new Set(apiResults.map((r) => r.id));
+      const combined = [...localResources.filter((r) => !existingIds.has(r.id)), ...apiResults];
+      return Array.isArray(res.data) ? combined : { ...res.data, results: combined };
     } catch {
-      return mockResponse(MOCK_RESOURCES);
+      const existingIds = new Set(MOCK_RESOURCES.map((r) => r.id));
+      const combined = [...localResources.filter((r) => !existingIds.has(r.id)), ...MOCK_RESOURCES];
+      let filtered = combined;
+      if (filters.verification_status) {
+        filtered = filtered.filter((r) => r.verification_status === filters.verification_status);
+      }
+      return mockResponse(filtered);
     }
   },
   create: async (data) => {
+    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+    const providerName = userObj.username || userObj.first_name || 'NGO Relief Agency';
+
+    const newResource = {
+      ...data,
+      id: Date.now(),
+      quantity_available: parseInt(data.quantity_available || 100, 10),
+      location: {
+        type: "Point",
+        coordinates: [parseFloat(data.longitude || 92.78), parseFloat(data.latitude || 24.83)],
+        latitude: parseFloat(data.latitude || 24.83),
+        longitude: parseFloat(data.longitude || 92.78)
+      },
+      latitude: parseFloat(data.latitude || 24.83),
+      longitude: parseFloat(data.longitude || 92.78),
+      provider_username: providerName,
+      verification_status: "pending", // NGO submissions start as pending verification for District Admin
+      created_at: new Date().toISOString(),
+    };
+
     try {
-      const res = await apiClient.post('/api/resources/', data);
+      const res = await apiClient.post('/api/resources/', newResource);
+      savePersistedResource(res.data || newResource);
+      emitRealtimeEvent('STOCK_SUBMITTED', {
+        title: 'New NGO Relief Stock Registered',
+        message: `${providerName} registered ${newResource.quantity_available} ${newResource.unit} of ${newResource.type} (Pending Verification).`,
+        resource: res.data || newResource,
+      });
       return res.data;
     } catch {
-      const newItem = {
-        ...data,
-        id: MOCK_RESOURCES.length + 1,
-        location: { type: "Point", coordinates: [data.longitude || 92.78, data.latitude || 24.83], latitude: data.latitude || 24.83, longitude: data.longitude || 92.78 },
-        provider_username: MOCK_USER.username,
-        verification_status: "verified_org"
-      };
-      MOCK_RESOURCES.push(newItem);
-      return mockResponse(newItem);
+      savePersistedResource(newResource);
+      MOCK_RESOURCES.unshift(newResource);
+      emitRealtimeEvent('STOCK_SUBMITTED', {
+        title: 'New NGO Relief Stock Registered',
+        message: `${providerName} registered ${newResource.quantity_available} ${newResource.unit} of ${newResource.type} (Pending Verification).`,
+        resource: newResource,
+      });
+      return mockResponse(newResource);
+    }
+  },
+  approve: async (id) => {
+    try {
+      const res = await apiClient.post(`/api/resources/${id}/approve/`);
+      const updated = res.data?.resource || { id, verification_status: 'approved' };
+      savePersistedResource(updated);
+      emitRealtimeEvent('STOCK_APPROVED', {
+        title: 'Stockpile Approved & Verified',
+        message: `Stockpile #${id} has been verified and approved by District Admin.`,
+        resourceId: id,
+      });
+      return res.data;
+    } catch {
+      const local = getPersistedResources();
+      let matched = local.find((r) => r.id === id) || MOCK_RESOURCES.find((r) => r.id === id);
+      if (matched) {
+        matched = { ...matched, verification_status: 'approved' };
+        savePersistedResource(matched);
+        MOCK_RESOURCES.forEach((r, idx) => {
+          if (r.id === id) MOCK_RESOURCES[idx].verification_status = 'approved';
+        });
+      }
+      emitRealtimeEvent('STOCK_APPROVED', {
+        title: 'Stockpile Approved & Verified',
+        message: `Stockpile #${id} has been verified and approved by District Admin.`,
+        resourceId: id,
+      });
+      return mockResponse({ message: `Resource #${id} approved.`, resource: matched });
+    }
+  },
+  debar: async (id, reason = 'Quality / Compliance standard failure') => {
+    try {
+      const res = await apiClient.post(`/api/resources/${id}/debar/`, { reason });
+      const updated = res.data?.resource || { id, verification_status: 'debarred', debar_reason: reason };
+      savePersistedResource(updated);
+      emitRealtimeEvent('STOCK_DEBARRED', {
+        title: 'Stockpile Debarred / Rejected',
+        message: `Stockpile #${id} was debarred by District Admin: ${reason}`,
+        resourceId: id,
+        reason,
+      });
+      return res.data;
+    } catch {
+      const local = getPersistedResources();
+      let matched = local.find((r) => r.id === id) || MOCK_RESOURCES.find((r) => r.id === id);
+      if (matched) {
+        matched = { ...matched, verification_status: 'debarred', debar_reason: reason };
+        savePersistedResource(matched);
+        MOCK_RESOURCES.forEach((r, idx) => {
+          if (r.id === id) {
+            MOCK_RESOURCES[idx].verification_status = 'debarred';
+            MOCK_RESOURCES[idx].debar_reason = reason;
+          }
+        });
+      }
+      emitRealtimeEvent('STOCK_DEBARRED', {
+        title: 'Stockpile Debarred / Rejected',
+        message: `Stockpile #${id} was debarred by District Admin: ${reason}`,
+        resourceId: id,
+        reason,
+      });
+      return mockResponse({ message: `Resource #${id} debarred.`, resource: matched });
     }
   },
 };
@@ -964,12 +1089,13 @@ export const conditionAPI = {
       MOCK_CONDITIONS.push(resultItem);
       
       // Auto trigger mock alert on blockages
-      if (sanitizedData.value === 'blocked') {
+      if (sanitizedData.value === 'blocked' || sanitizedData.value === 'flooded' || sanitizedData.value === 'landslide') {
         const newAlert = {
           id: Date.now() + 1,
           alert_type: "road_blocked",
           severity: "critical",
-          message: `CRITICAL: Road obstruction reported at ${sanitizedData.latitude}, ${sanitizedData.longitude}. Status: blocked.`,
+          message: `CRITICAL ROAD HAZARD: ${sanitizedData.condition_type.replace('_', ' ').toUpperCase()} (${sanitizedData.value}) reported at Lat ${sanitizedData.latitude}, Lon ${sanitizedData.longitude}. Highway traffic rerouting active.`,
+          district: sanitizedData.district || 1,
           channel: "app",
           sent_at: new Date().toISOString()
         };
@@ -979,6 +1105,13 @@ export const conditionAPI = {
 
     if (resultItem) {
       savePersistedCondition(resultItem);
+      // Emit Real-time Disruption Alert to all Citizen and Admin views
+      emitRealtimeEvent('DISRUPTION_REPORTED', {
+        title: `🚨 Highway Traffic Alert: ${resultItem.value.toUpperCase()}`,
+        message: `Field Officer reported road disruption (${resultItem.condition_type}) at coordinates [${resultItem.latitude}, ${resultItem.longitude}]. Divert via safe corridor!`,
+        condition: resultItem,
+        severity: resultItem.value === 'blocked' || resultItem.value === 'landslide' || resultItem.value === 'flooded' ? 'critical' : 'warning',
+      });
     }
     return resultItem;
   },
@@ -1402,20 +1535,26 @@ export const vehicleAPI = {
     }
   },
   create: async (data) => {
+    let newItem = null;
     try {
       const res = await apiClient.post('/api/vehicles/', data);
-      return res.data;
+      newItem = res.data;
     } catch {
-      const newItem = {
+      newItem = {
         ...data,
-        id: MOCK_VEHICLES.length + 1,
-        current_location: { type: "Point", coordinates: [92.78, 24.83], latitude: 24.83, longitude: 92.78 },
+        id: Date.now(),
+        current_location: { type: "Point", coordinates: [data.longitude || 92.78, data.latitude || 24.83], latitude: data.latitude || 24.83, longitude: data.longitude || 92.78 },
         status: "idle",
         last_ping_at: new Date().toISOString()
       };
-      MOCK_VEHICLES.push(newItem);
-      return mockResponse(newItem);
+      MOCK_VEHICLES.unshift(newItem);
     }
+    emitRealtimeEvent('TRANSPORT_ENROLLED', {
+      title: 'New Heavy Transport Vehicle Enrolled',
+      message: `Unit ${newItem.registration_number} (${newItem.vehicle_type}) was registered by fleet operator.`,
+      vehicle: newItem,
+    });
+    return newItem;
   },
   ping: async (id, payload) => {
     try {
