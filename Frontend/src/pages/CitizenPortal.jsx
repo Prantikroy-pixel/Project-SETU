@@ -6,6 +6,7 @@ import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '..
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
+import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
 import { AlertCircle, PlusCircle, CheckCircle, MapPin, Radio, Eye } from 'lucide-react';
 import L from 'leaflet';
 
@@ -372,10 +373,8 @@ export default function CitizenPortal() {
                 zoom={10}
                 className="w-full h-full"
               >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                {/* Google Maps Real-Time Road & Satellite Hybrid Base Layer */}
+                <GoogleMapTileLayer defaultLayer="roadmap" />
 
                 {/* Interactive Map Location & Area Search Bar */}
                 <MapPlaceSearchControl

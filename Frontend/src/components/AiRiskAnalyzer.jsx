@@ -13,6 +13,7 @@ import {
 } from './RiskCorridorMapLayer';
 import MapLocationInspector from './MapLocationInspector';
 import MapPlaceSearchControl from './MapPlaceSearchControl';
+import GoogleMapTileLayer from './GoogleMapTileLayer';
 import {
   Cpu,
   Navigation,
@@ -378,10 +379,8 @@ export default function AiRiskAnalyzer({
                 zoom={scopeMode === 'corridor' ? 8 : 11}
                 className="w-full h-full"
               >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                {/* Google Maps Real-Time Road & Satellite Hybrid Base Layer */}
+                <GoogleMapTileLayer defaultLayer="roadmap" />
 
                 {/* Interactive Map Place Search */}
                 <MapPlaceSearchControl onSelectLocation={handleMapPointSelect} />

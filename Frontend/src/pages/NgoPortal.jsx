@@ -6,6 +6,7 @@ import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '..
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
+import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
 import { AlertCircle, CheckCircle, Package, PlusCircle, MapPin, Eye, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -309,10 +310,8 @@ export default function NgoPortal() {
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden h-[300px] relative">
             <MapContainer center={[24.83, 92.78]} zoom={10} className="w-full h-full">
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+              {/* Google Maps Real-Time Road & Satellite Hybrid Base Layer */}
+              <GoogleMapTileLayer defaultLayer="roadmap" />
 
               {/* Interactive Area / Location Search Bar */}
               <MapPlaceSearchControl

@@ -8,6 +8,7 @@ import { RiskCorridorMapLayer, RiskLegendControl, RiskSegmentedRoute, LiveGpsSim
 import LiveGpsTrackerSimulation from '../components/LiveGpsTrackerSimulation';
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
+import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
 import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
   Activity,
@@ -625,10 +626,8 @@ export default function DistrictDashboard() {
 
                 <div className="w-full flex-1 rounded-lg overflow-hidden border border-slate-200/80 relative">
                   <MapContainer center={[24.83, 92.78]} zoom={8} className="w-full h-full">
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
+                    {/* Google Maps Real-Time Road & Satellite Hybrid Base Layer */}
+                    <GoogleMapTileLayer defaultLayer="roadmap" />
 
                     {/* Quick Interactive Map Search Control for Areas, Towns & Districts */}
                     <MapPlaceSearchControl />

@@ -15,6 +15,7 @@ import {
 } from '../components/RiskCorridorMapLayer';
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
+import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
 import {
   AlertCircle,
   CheckCircle,
@@ -549,10 +550,8 @@ export default function FieldOfficerPortal() {
               </div>
               <div className="w-full h-full relative" style={{ height: 'calc(100% - 55px)' }}>
                 <MapContainer center={[24.8333, 92.7789]} zoom={11} className="w-full h-full">
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
+                  {/* Google Maps Real-Time Road & Satellite Hybrid Base Layer */}
+                  <GoogleMapTileLayer defaultLayer="roadmap" />
 
                   {/* Interactive Map Location & Area Search Bar */}
                   <MapPlaceSearchControl

@@ -1,54 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { vehicleAPI, allocationAPI, conditionAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
-import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
-import { AlertCircle, CheckCircle, Truck, Play, RefreshCw, MapPin, Eye, Lock, Shield } from 'lucide-react';
+import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
+import {
+  SILCHAR_HAFLONG_HIGHWAY_ROUTE,
+  SILCHAR_HAFLONG_GEOJSON,
+} from '../data/silcharHaflongRoute';
+import {
+  AlertCircle,
+  CheckCircle,
+  Truck,
+  Play,
+  Pause,
+  RotateCcw,
+  RefreshCw,
+  MapPin,
+  Eye,
+  Lock,
+  Shield,
+  Navigation,
+  Activity,
+  Gauge,
+  Clock,
+  Compass,
+  Layers,
+  Sparkles,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-// Custom dynamic moving cargo marker icon
-const liveCargoMarkerIcon = new L.DivIcon({
-  className: 'live-cargo-gps-pin',
-  html: `
-    <div class="relative flex items-center justify-center">
-      <div class="absolute w-9 h-9 rounded-full bg-emerald-500/40 animate-ping"></div>
-      <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-400 shadow-xl flex items-center justify-center text-white text-sm">
-        🚚
+// Custom dynamic moving cargo vehicle marker icon
+const createFleetConvoyIcon = (isSimulating = false) => {
+  return new L.DivIcon({
+    className: 'live-cargo-gps-pin',
+    html: `
+      <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+        <!-- Pulsing Radar Glow Ring -->
+        <div style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(16, 185, 129, 0.35); border: 2px solid #10B981; animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <!-- Inner Convoy Badge -->
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: #064E3B; border: 2px solid #34D399; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); font-size: 16px;">
+          🚚
+        </div>
+        <!-- Bottom Floating Tag -->
+        <div style="position: absolute; bottom: -18px; background: rgba(15, 23, 42, 0.95); color: #34D399; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.5); white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.4); text-transform: uppercase; letter-spacing: 0.5px;">
+          AS-11-BC-4401
+        </div>
       </div>
-      <div class="absolute -bottom-5 bg-slate-900/90 text-white text-[9px] font-black px-1.5 py-0.2 rounded border border-emerald-400/40 whitespace-nowrap shadow-md">
-        LIVE CARGO
-      </div>
-    </div>
-  `,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-  popupAnchor: [0, -18],
-});
-
-function getSimulatedPosition(coordinates, progressPercent) {
-  if (!coordinates || coordinates.length === 0) return null;
-  if (coordinates.length === 1 || progressPercent <= 0) {
-    return { lat: coordinates[0][1], lon: coordinates[0][0], pointIndex: 0 };
-  }
-  if (progressPercent >= 100) {
-    const last = coordinates[coordinates.length - 1];
-    return { lat: last[1], lon: last[0], pointIndex: coordinates.length - 1 };
-  }
-  const totalSegments = coordinates.length - 1;
-  const rawIdx = (progressPercent / 100) * totalSegments;
-  const segIdx = Math.min(Math.floor(rawIdx), totalSegments - 1);
-  const segFraction = rawIdx - segIdx;
-
-  const p1 = coordinates[segIdx];
-  const p2 = coordinates[segIdx + 1];
-
-  const lon = p1[0] + (p2[0] - p1[0]) * segFraction;
-  const lat = p1[1] + (p2[1] - p1[1]) * segFraction;
-  return { lat, lon, pointIndex: segIdx };
-}
+    `,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -22],
+  });
+};
 
 export default function TransportPortal() {
   const { user } = useAuth();
@@ -62,23 +68,59 @@ export default function TransportPortal() {
   // New vehicle form
   const [newVehicle, setNewVehicle] = useState({
     registration_number: '',
-    vehicle_type: '5-Ton Truck',
+    vehicle_type: '5-Ton 4x4 Heavy Relief Truck',
   });
   const [vehicleMsg, setVehicleMsg] = useState({ text: '', type: '' });
   const [registering, setRegistering] = useState(false);
 
-  // Tracking / Simulation states
+  // Real-time Silchar -> Haflong GPS Simulation State
+  const [simStep, setSimStep] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [simSpeedMs, setSimSpeedMs] = useState(350); // 350ms per road waypoint (1x speed)
   const [pingMsg, setPingMsg] = useState({ text: '', type: '' });
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simIntervalId, setSimIntervalId] = useState(null);
-  const [simProgressPercent, setSimProgressPercent] = useState(50); // Default to 50% Midway for instant inspection
+
+  const totalWaypoints = SILCHAR_HAFLONG_HIGHWAY_ROUTE.length; // 120
+  const currentPos = SILCHAR_HAFLONG_HIGHWAY_ROUTE[Math.min(simStep, totalWaypoints - 1)];
+  const progressPercent = Math.round((simStep / (totalWaypoints - 1)) * 100);
+
+  // Extract path coordinates for Leaflet Polyline: [[lat, lon], ...]
+  const routePolylineCoords = SILCHAR_HAFLONG_HIGHWAY_ROUTE.map((pt) => [pt.lat, pt.lon]);
 
   useEffect(() => {
     fetchLogisticsData();
-    return () => {
-      if (simIntervalId) clearInterval(simIntervalId);
-    };
   }, []);
+
+  // Periodic GPS convoy motion simulation along Silchar-Haflong real road
+  useEffect(() => {
+    let timer;
+    if (isPlaying) {
+      timer = setInterval(() => {
+        setSimStep((prev) => {
+          if (prev >= totalWaypoints - 1) {
+            setIsPlaying(false);
+            setPingMsg({
+              text: 'Convoy reached Haflong Emergency Relief Terminal (100% Delivered).',
+              type: 'success',
+            });
+            return prev;
+          }
+          const next = prev + 1;
+          const pt = SILCHAR_HAFLONG_HIGHWAY_ROUTE[next];
+          // Dispatch live telemetry ping to vehicle API
+          if (selectedVehicle?.id || vehicles[0]?.id) {
+            const vId = selectedVehicle?.id || vehicles[0]?.id;
+            vehicleAPI.ping(vId, {
+              latitude: pt.lat,
+              longitude: pt.lon,
+              status: next >= totalWaypoints - 1 ? 'idle' : 'en_route',
+            }).catch(() => {});
+          }
+          return next;
+        });
+      }, simSpeedMs);
+    }
+    return () => clearInterval(timer);
+  }, [isPlaying, simSpeedMs, totalWaypoints, selectedVehicle, vehicles]);
 
   const fetchLogisticsData = async () => {
     setLoading(true);
@@ -88,15 +130,33 @@ export default function TransportPortal() {
         params.operator = user.id;
       }
       const vData = await vehicleAPI.list(params);
-      setVehicles(vData.results || vData || []);
+      const vList = vData.results || vData || [];
+      setVehicles(vList);
+      if (vList.length > 0 && !selectedVehicle) {
+        setSelectedVehicle(vList[0]);
+      }
 
       const aData = await allocationAPI.list();
-      // Filter allocations for this operator's vehicles or show all if admin/other
-      const vIds = (vData.results || vData || []).map((v) => v.id);
+      const aList = aData.results || aData || [];
+      // Enrich allocations with Silchar-Haflong highway route if route was generic
+      const enrichedAllocs = aList.map((a) => {
+        if (!a.route_geojson || (a.route_geojson.geometry?.coordinates?.length || 0) < 10) {
+          return {
+            ...a,
+            route_geojson: SILCHAR_HAFLONG_GEOJSON,
+          };
+        }
+        return a;
+      });
+
       const opAllocs = user?.role === 'transport_operator'
-        ? (aData.results || aData || []).filter((a) => vIds.includes(a.vehicle))
-        : (aData.results || aData || []);
+        ? enrichedAllocs.filter((a) => vList.map((v) => v.id).includes(a.vehicle))
+        : enrichedAllocs;
+
       setAllocations(opAllocs);
+      if (opAllocs.length > 0 && !selectedAllocation) {
+        setSelectedAllocation(opAllocs[0]);
+      }
 
       const cData = await conditionAPI.list();
       setConditions(cData.results || cData || []);
@@ -119,14 +179,15 @@ export default function TransportPortal() {
       const payload = {
         ...newVehicle,
         operator: user?.id,
-        latitude: 24.83,
-        longitude: 92.78,
+        latitude: 24.83319,
+        longitude: 92.77888,
         status: 'idle',
       };
       const v = await vehicleAPI.create(payload);
       setVehicles([...vehicles, v]);
-      setVehicleMsg({ text: `Vehicle ${v.registration_number} registered.`, type: 'success' });
-      setNewVehicle({ registration_number: '', vehicle_type: '5-Ton Truck' });
+      setSelectedVehicle(v);
+      setVehicleMsg({ text: `Vehicle ${v.registration_number} registered successfully.`, type: 'success' });
+      setNewVehicle({ registration_number: '', vehicle_type: '5-Ton 4x4 Heavy Relief Truck' });
     } catch (err) {
       setVehicleMsg({ text: 'Registration failed. Registration number must be unique.', type: 'error' });
     } finally {
@@ -137,606 +198,517 @@ export default function TransportPortal() {
   const updateAllocationStatus = async (id, status) => {
     try {
       const updated = await allocationAPI.update(id, { delivery_status: status });
-      // Update allocations list
-      setAllocations(allocations.map((a) => (a.id === id ? updated : a)));
-      setSelectedAllocation(updated);
-      
-      // Update vehicle status locally if status changed
+      setAllocations(allocations.map((a) => (a.id === id ? { ...updated, route_geojson: SILCHAR_HAFLONG_GEOJSON } : a)));
+      if (selectedAllocation?.id === id) {
+        setSelectedAllocation({ ...updated, route_geojson: SILCHAR_HAFLONG_GEOJSON });
+      }
       if (status === 'delivered') {
-        const vId = updated.vehicle;
-        await vehicleAPI.ping(vId, { latitude: 24.83, longitude: 92.78, status: 'idle' });
-        fetchLogisticsData();
+        setSimStep(totalWaypoints - 1);
+        setIsPlaying(false);
       }
     } catch (err) {
       console.error('Failed to update allocation milestone', err);
     }
   };
 
-  const handleSetSimulationProgress = async (allocation, percent) => {
-    setSimProgressPercent(percent);
-    const coords = allocation?.route_geojson?.geometry?.coordinates;
-    if (!coords || coords.length === 0) return;
-
-    const pos = getSimulatedPosition(coords, percent);
-    if (!pos) return;
-
-    const statusLabel =
-      percent === 0
-        ? 'Origin Depot'
-        : percent >= 100
-        ? 'Destination Sector'
-        : percent === 50
-        ? 'Midway Transit'
-        : `${percent}% in transit`;
-
-    try {
-      if (allocation.vehicle) {
-        await vehicleAPI.ping(allocation.vehicle, {
-          latitude: pos.lat,
-          longitude: pos.lon,
-          status: percent >= 100 ? 'idle' : 'en_route',
-        });
-      }
-      setPingMsg({
-        text: `Live GPS Ping (${percent}%): Lat ${pos.lat.toFixed(4)}°N, Lon ${pos.lon.toFixed(4)}°E — ${statusLabel}`,
-        type: 'info',
-      });
-    } catch {
-      setPingMsg({
-        text: `Simulated GPS (${percent}%): Lat ${pos.lat.toFixed(4)}°N, Lon ${pos.lon.toFixed(4)}°E — ${statusLabel}`,
-        type: 'info',
-      });
-    }
+  const handleScrubProgress = (percent) => {
+    const targetStep = Math.min(
+      Math.max(Math.round((percent / 100) * (totalWaypoints - 1)), 0),
+      totalWaypoints - 1
+    );
+    setSimStep(targetStep);
+    const pt = SILCHAR_HAFLONG_HIGHWAY_ROUTE[targetStep];
+    setPingMsg({
+      text: `Scrubbed to ${percent}%: ${pt.name} (${pt.lat.toFixed(4)}°N, ${pt.lon.toFixed(4)}°E)`,
+      type: 'info',
+    });
   };
 
-  const handleTogglePlaySimulation = (allocation) => {
-    if (isSimulating) {
-      if (simIntervalId) clearInterval(simIntervalId);
-      setIsSimulating(false);
-      setSimIntervalId(null);
-      setPingMsg({ text: 'GPS simulation paused.', type: 'info' });
-      return;
-    }
-
-    if (!allocation?.route_geojson) return;
-    const coords = allocation.route_geojson.geometry?.coordinates;
-    if (!coords || coords.length === 0) return;
-
-    setIsSimulating(true);
-    setPingMsg({ text: 'Live GPS convoy simulation active...', type: 'success' });
-
-    let currentPct = simProgressPercent >= 100 ? 0 : simProgressPercent;
-
-    const intervalId = setInterval(async () => {
-      currentPct += 2;
-      if (currentPct > 100) {
-        currentPct = 100;
-        clearInterval(intervalId);
-        setIsSimulating(false);
-        setSimIntervalId(null);
-        setSimProgressPercent(100);
-        await updateAllocationStatus(allocation.id, 'delivered');
-        setPingMsg({ text: 'Vehicle reached destination sector. Status: Delivered.', type: 'success' });
-        return;
-      }
-
-      setSimProgressPercent(currentPct);
-      const pos = getSimulatedPosition(coords, currentPct);
-      if (pos && allocation.vehicle) {
-        try {
-          await vehicleAPI.ping(allocation.vehicle, {
-            latitude: pos.lat,
-            longitude: pos.lon,
-            status: 'en_route',
-          });
-        } catch {}
-      }
-    }, 650);
-
-    setSimIntervalId(intervalId);
+  const handleResetSimulation = () => {
+    setIsPlaying(false);
+    setSimStep(0);
+    setPingMsg({
+      text: 'Convoy simulation reset to Silchar Central Logistics Depot (Km 0).',
+      type: 'info',
+    });
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="border-b border-slate-200 pb-4 mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 flex items-center space-x-2">
-          <Truck className="h-6 w-6 text-primary-600 animate-bounce shrink-0" />
-          <span>Transport Operator Control Center</span>
-        </h1>
-        <p className="text-sm text-slate-500 font-medium">
-          Register logistics vehicles, track dispatch allocations, and simulate real-time GPS telemetry routing.
-        </p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Header Banner */}
+      <div className="border-b border-slate-200 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 flex items-center space-x-2">
+              <Truck className="h-6 w-6 text-emerald-600 shrink-0" />
+              <span>Fleet Operator Telematics & Transit Command</span>
+            </h1>
+            <p className="text-sm text-slate-500 font-medium mt-0.5">
+              Live highway GPS telemetry tracking, Silchar–Haflong paved route simulation, and fleet dispatch monitors.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+              Paved Highway Telemetry Active
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* left column: fleet list & vehicle register */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2 mb-4 border-b border-slate-100 pb-2">
-              <Truck className="h-5 w-5 text-primary-600" />
-              <span>Register Vehicle</span>
-            </h2>
+      {/* Real-time Telemetry Status Stream Banner */}
+      <RealtimeTelemetryBanner
+        conditions={conditions}
+        districtName="Cachar – Dima Hasao Corridor"
+        onRefresh={fetchLogisticsData}
+        isRefreshing={loading}
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Vehicle Registration & Fleet Overview */}
+        <div className="space-y-6">
+          {/* Register Vehicle Card */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-extrabold text-slate-900 flex items-center space-x-2">
+                <Truck className="h-4 w-4 text-emerald-600" />
+                <span>Register Heavy Relief Vehicle</span>
+              </h2>
+              <span className="text-[10px] font-black uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                Fleet Unit
+              </span>
+            </div>
 
             {vehicleMsg.text && (
               <div
-                className={`p-3 rounded text-xs mb-4 flex items-center space-x-2 font-medium border ${
+                className={`p-3 rounded-lg text-xs font-semibold border ${
                   vehicleMsg.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-700'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                     : 'bg-red-50 border-red-200 text-red-700'
                 }`}
               >
-                {vehicleMsg.type === 'success' ? (
-                  <CheckCircle className="h-4 w-4 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                )}
-                <span>{vehicleMsg.text}</span>
+                {vehicleMsg.text}
               </div>
             )}
 
-            <form onSubmit={handleRegisterVehicle} className="space-y-4">
+            <form onSubmit={handleRegisterVehicle} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
-                  Registration Number *
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Registration Number <span className="text-red-500">*</span>
                 </label>
                 <input
-                  name="registration_number"
                   type="text"
-                  required
-                  placeholder="e.g. AS-01-AB-1234"
+                  placeholder="e.g. AS-11-BC-4401"
                   value={newVehicle.registration_number}
                   onChange={(e) => setNewVehicle({ ...newVehicle, registration_number: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded p-2"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none uppercase"
+                  required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
-                  Vehicle Type
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Classification</label>
                 <select
-                  name="vehicle_type"
                   value={newVehicle.vehicle_type}
                   onChange={(e) => setNewVehicle({ ...newVehicle, vehicle_type: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded p-2 bg-white"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
                 >
-                  <option value="5-Ton Heavy Truck">5-Ton Heavy Truck</option>
-                  <option value="4x4 Rescue Pickup">4x4 Rescue Pickup</option>
-                  <option value="SDRF Inflatable Motorboat">SDRF Inflatable Motorboat</option>
-                  <option value="Emergency Ambulance">Emergency Ambulance</option>
-                  <option value="Standard Cargo Van">Standard Cargo Van</option>
+                  <option value="5-Ton 4x4 Heavy Relief Truck">5-Ton 4x4 Heavy Relief Truck</option>
+                  <option value="10-Ton Logistics Carrier">10-Ton Logistics Carrier</option>
+                  <option value="Amphibious All-Terrain Unit">Amphibious All-Terrain Unit</option>
+                  <option value="Emergency Medical Van">Emergency Medical Van</option>
                 </select>
               </div>
 
               <button
                 type="submit"
                 disabled={registering}
-                className="w-full py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold uppercase text-xs rounded-md shadow-md transition-all cursor-pointer disabled:opacity-50 tracking-wider mt-2"
+                className="w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg shadow-xs transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer"
               >
-                {registering ? 'Registering...' : 'Add Vehicle to Fleet'}
+                <Truck className="h-4 w-4" />
+                <span>{registering ? 'Enrolling Unit...' : 'Enroll Vehicle into Fleet'}</span>
               </button>
             </form>
           </div>
 
-          {/* Fleet status card */}
-          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2 mb-4 border-b border-slate-100 pb-2">
-              <Truck className="h-5 w-5 text-primary-600" />
-              <span>Fleet Registry ({vehicles.length})</span>
-            </h2>
+          {/* Registered Fleet List */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                Registered Transport Units ({vehicles.length})
+              </h3>
+              <button
+                onClick={fetchLogisticsData}
+                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Refresh</span>
+              </button>
+            </div>
+
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {vehicles.map((v) => (
-                <div
-                  key={v.id}
-                  onClick={() => setSelectedVehicle(v)}
-                  className={`p-3 rounded border text-xs font-semibold cursor-pointer transition-colors ${
-                    selectedVehicle?.id === v.id
-                      ? 'border-primary-500 bg-primary-50 text-primary-800'
-                      : 'border-slate-100 hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-extrabold">{v.registration_number}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                        v.status === 'idle'
-                          ? 'bg-green-100 text-green-800'
-                          : v.status === 'en_route'
-                          ? 'bg-blue-100 text-blue-800 animate-pulse'
-                          : 'bg-slate-100 text-slate-800'
-                      }`}
-                    >
-                      {v.status}
-                    </span>
-                  </div>
-                  <div className="text-slate-500 mt-1">{v.vehicle_type}</div>
+              {vehicles.length === 0 ? (
+                <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500 italic text-center">
+                  Default Convoy Unit Active: AS-11-BC-4401
                 </div>
-              ))}
+              ) : (
+                vehicles.map((v) => (
+                  <div
+                    key={v.id}
+                    onClick={() => setSelectedVehicle(v)}
+                    className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                      selectedVehicle?.id === v.id
+                        ? 'border-emerald-500 bg-emerald-50/50 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-mono font-black text-slate-900">{v.registration_number}</span>
+                      <span
+                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          v.status === 'en_route'
+                            ? 'bg-blue-100 text-blue-800'
+                            : v.status === 'dispatched'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {v.status ? v.status.replace('_', ' ') : 'Ready'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-600">{v.vehicle_type}</div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-1">
+                      Assigned: Silchar ➔ Haflong NH-27 Corridor
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        {/* middle/right column: active allocations, map, GPS simulator */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Active Allocations */}
-          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2 mb-4 border-b border-slate-100 pb-2">
-              <Truck className="h-5 w-5 text-primary-600" />
-              <span>Active Delivery Allocations ({allocations.length})</span>
-            </h2>
+        {/* Right 2 Columns: Live Highway Simulation & Tactical Map */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Mission Details & District Admin Reroute Notice Banner */}
+          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/90 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <h3 className="text-sm font-black text-slate-900">
+                    NH-27 Silchar – Haflong Paved Highway Lifeline (87.3 km)
+                  </h3>
+                </div>
+                <div className="text-xs text-slate-600 font-medium mt-1 flex flex-wrap items-center gap-2">
+                  <span className="flex items-center gap-1 font-bold text-slate-800">
+                    📦 Origin: <span className="font-normal text-slate-600">Silchar Central Logistics Depot (Km 0)</span>
+                  </span>
+                  <span>➔</span>
+                  <span className="flex items-center gap-1 font-bold text-slate-800">
+                    🎯 Target: <span className="font-normal text-slate-600">Haflong Emergency Relief Terminal (Km 87.3)</span>
+                  </span>
+                </div>
+              </div>
 
-            {allocations.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No delivery allocations currently assigned to your fleet.</p>
-            ) : (
-              <div className="space-y-4">
-                {allocations.map((a) => (
-                  <div
-                    key={a.id}
-                    className={`p-4 rounded-md border text-xs font-semibold shadow-sm transition-all cursor-pointer ${
-                      selectedAllocation?.id === a.id
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-slate-100 hover:bg-slate-50 bg-white'
-                    }`}
-                    onClick={() => setSelectedAllocation(a)}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 border-b border-slate-100 pb-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase">
-                          ALLOCATION #{a.id}
-                        </span>
-                        <span className="text-[10px] text-slate-400">Assigned {new Date(a.assigned_at).toLocaleDateString()}</span>
-                      </div>
-                      <span
-                        className={`mt-2 sm:mt-0 px-2.5 py-0.5 rounded text-[10px] font-black uppercase border ${
-                          a.delivery_status === 'delivered'
-                            ? 'bg-green-100 text-green-800 border-green-200'
-                            : a.delivery_status === 'delayed'
-                            ? 'bg-red-100 text-red-800 border-red-200 animate-pulse'
-                            : 'bg-blue-100 text-blue-800 border-blue-200'
-                        }`}
-                      >
-                        {a.delivery_status}
-                      </span>
-                    </div>
+              {/* Reroute Restriction Badge */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shrink-0 shadow-2xs">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-tight text-amber-900">Reroute Control</div>
+                  <div className="text-[10px] font-semibold text-amber-700">District Admin Authorization Only</div>
+                </div>
+              </div>
+            </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-slate-600 mb-3">
-                      <div>
-                        <strong>Cargo Type:</strong> <span className="uppercase text-slate-900 font-bold">{a.need_type ? a.need_type.replace('_', ' ') : 'Supplies'}</span>
-                      </div>
-                      <div>
-                        <strong>Load Volume:</strong> {a.need_quantity} {a.need_unit}
-                      </div>
-                      <div>
-                        <strong>Assigned Vehicle:</strong> {a.vehicle_registration || 'None'}
-                      </div>
-                      <div>
-                        <strong>Estimated Delay:</strong> <span className={a.estimated_delay_minutes > 0 ? 'text-red-500 font-bold' : ''}>{a.estimated_delay_minutes} mins</span>
-                      </div>
-                    </div>
-
-                    {/* Milestones Action Controls */}
-                    {a.delivery_status !== 'delivered' && (
-                      <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateAllocationStatus(a.id, 'en_route');
-                          }}
-                          className="px-3 py-1 border border-primary-300 text-primary-700 bg-white rounded text-[10px] font-bold hover:bg-primary-50 transition-colors"
-                        >
-                          En Route Milestone
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateAllocationStatus(a.id, 'delivered');
-                          }}
-                          className="px-3 py-1 border border-green-300 text-green-700 bg-white rounded text-[10px] font-bold hover:bg-green-50 transition-colors"
-                        >
-                          Delivered Milestone
-                        </button>
-                        {a.route_geojson && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStartSimulation(a);
-                            }}
-                            disabled={isSimulating}
-                            className="px-3 py-1 bg-primary-600 text-white rounded text-[10px] font-bold hover:bg-primary-700 transition-colors flex items-center space-x-1 disabled:opacity-50"
-                          >
-                            <Play className="h-3 w-3" />
-                            <span>Simulate Transit GPS Pings</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            {/* Notification / Ping status */}
+            {pingMsg.text && (
+              <div
+                className={`p-2.5 rounded-lg text-xs flex items-center space-x-2 font-bold border ${
+                  pingMsg.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-blue-50 border-blue-200 text-blue-800'
+                }`}
+              >
+                <Activity className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+                <span>{pingMsg.text}</span>
               </div>
             )}
-          </div>
 
-          {/* GeoJSON Map View & GPS Telemetry Simulator logs */}
-          {selectedAllocation && (
-            <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
-                  <MapPin className="h-4.5 w-4.5 text-primary-600" />
-                  <span>Transit Geonavigator Map — Allocation #{selectedAllocation.id}</span>
-                </h3>
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase bg-slate-100 px-2 py-0.5 rounded">
-                  {selectedAllocation.delivery_status}
-                </span>
+            {/* Interactive Vehicle Simulation Control Panel */}
+            <div className="bg-slate-900 text-white p-4 rounded-xl shadow-md space-y-4">
+              {/* Play / Controls Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md">
+                    🚚
+                  </div>
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-2">
+                      <span>AS-11-BC-4401 Live Convoy Simulation</span>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40 font-mono font-bold">
+                        {progressPercent}% Complete
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                      Waypoint: {simStep + 1} of {totalWaypoints} ({currentPos.name})
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Play / Pause */}
+                  <button
+                    type="button"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-sm cursor-pointer ${
+                      isPlaying
+                        ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400'
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
+                    }`}
+                  >
+                    {isPlaying ? (
+                      <>
+                        <Pause className="w-4 h-4 fill-current" />
+                        <span>Pause Simulation</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>Play GPS Simulation</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Reset */}
+                  <button
+                    type="button"
+                    onClick={handleResetSimulation}
+                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                    title="Reset to Silchar Depot"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {pingMsg.text && (
-                <div
-                  className={`p-3 rounded text-xs flex items-center space-x-2 font-semibold border ${
-                    pingMsg.type === 'success'
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : pingMsg.type === 'info'
-                      ? 'bg-blue-50 border-blue-200 text-blue-700 animate-pulse'
-                      : 'bg-red-50 border-red-200 text-red-700'
-                  }`}
-                >
-                  <RefreshCw className={`h-4 w-4 shrink-0 ${pingMsg.type === 'info' ? 'animate-spin' : ''}`} />
-                  <span>{pingMsg.text}</span>
+              {/* Highway Scrubber Range Slider */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px] font-bold text-slate-400">
+                  <span>Silchar Depot (0%)</span>
+                  <span className="text-emerald-400 font-mono font-black">
+                    Current: {progressPercent}% ({((progressPercent / 100) * 87.3).toFixed(1)} / 87.3 km)
+                  </span>
+                  <span>Haflong Terminal (100%)</span>
                 </div>
-              )}
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={progressPercent}
+                  onChange={(e) => handleScrubProgress(parseInt(e.target.value, 10))}
+                  className="w-full accent-emerald-500 cursor-pointer h-2.5 bg-slate-800 rounded-lg"
+                />
+              </div>
 
-              {selectedAllocation.route_geojson ? (
-                <div className="space-y-3">
-                  {/* Corridor Summary & District Admin Reroute Authority Badge */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h4 className="font-extrabold text-xs text-slate-900">
-                          {selectedAllocation.route_geojson.properties?.corridor_name || 'NH-27 Silchar – Haflong Lifeline Corridor (88.4 km)'}
-                        </h4>
-                      </div>
-                      <div className="text-[11px] text-slate-600 font-medium flex items-center gap-2">
-                        <span>📍 <strong>Origin:</strong> {selectedAllocation.route_geojson.properties?.origin_name || 'Silchar Central Logistics Depot'}</span>
-                        <span>➔</span>
-                        <span>🎯 <strong>Target:</strong> {selectedAllocation.route_geojson.properties?.destination_name || 'Haflong Dima Hasao Sector'}</span>
-                      </div>
-                    </div>
+              {/* Speed Multiplier & Waypoint Quick Jumps */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 mr-1">Corridor Stops:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleScrubProgress(0)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                      progressPercent === 0 ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Silchar (0%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrubProgress(28)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                      progressPercent >= 25 && progressPercent <= 32 ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Balacherra (28%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrubProgress(48)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                      progressPercent >= 45 && progressPercent <= 52 ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Harangajao (48%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrubProgress(72)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                      progressPercent >= 70 && progressPercent <= 76 ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Jatinga Pass (72%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrubProgress(100)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                      progressPercent === 100 ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    Haflong (100%)
+                  </button>
+                </div>
 
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold shrink-0">
-                      <Lock className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Rerouting Control: <span className="underline font-black">District Admin Only</span></span>
-                    </div>
-                  </div>
-
-                  {/* Interactive Vehicle Simulation Control Panel */}
-                  <div className="bg-slate-900 text-white p-4 rounded-xl shadow-sm space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs">
-                          GPS
-                        </div>
-                        <div>
-                          <div className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-2">
-                            <span>Cargo Vehicle Simulation & Live Telemetry</span>
-                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                              {simProgressPercent}% Transit Progress
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Play / Pause Toggle Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePlaySimulation(selectedAllocation)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm ${
-                          isSimulating
-                            ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
-                            : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
-                        }`}
-                      >
-                        {isSimulating ? (
-                          <>
-                            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
-                            <span>Pause Simulation</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>Play GPS Simulation</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Progress Slider */}
-                    <div>
-                      <div className="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
-                        <span>Depot (0%)</span>
-                        <span className="text-emerald-400 font-extrabold">Current: {simProgressPercent}%</span>
-                        <span>Destination (100%)</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={simProgressPercent}
-                        onChange={(e) =>
-                          handleSetSimulationProgress(selectedAllocation, parseInt(e.target.value, 10))
-                        }
-                        className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
-                      />
-                    </div>
-
-                    {/* Quick Preset Jump Buttons (Origin, Midway 50%, Destination) */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Quick Jump:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSimulationProgress(selectedAllocation, 0)}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
-                          simProgressPercent === 0
-                            ? 'bg-emerald-500 text-slate-950'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                        }`}
-                      >
-                        Origin Depot (0%)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSimulationProgress(selectedAllocation, 50)}
-                        className={`px-2.5 py-1 rounded text-[10px] font-black transition-colors flex items-center gap-1 ${
-                          simProgressPercent === 50
-                            ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
-                            : 'bg-slate-800 hover:bg-slate-700 text-amber-300'
-                        }`}
-                      >
-                        <span>⚡ Midway (50%)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSimulationProgress(selectedAllocation, 85)}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
-                          simProgressPercent === 85
-                            ? 'bg-emerald-500 text-slate-950'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                        }`}
-                      >
-                        Near Target (85%)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetSimulationProgress(selectedAllocation, 100)}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
-                          simProgressPercent === 100
-                            ? 'bg-emerald-500 text-slate-950'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                        }`}
-                      >
-                        Delivered (100%)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Map Box */}
-                  <div className="w-full h-96 relative rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                    <MapContainer
-                      center={[
-                        selectedAllocation.route_geojson.geometry.coordinates[0][1],
-                        selectedAllocation.route_geojson.geometry.coordinates[0][0],
-                      ]}
-                      zoom={11}
-                      className="w-full h-full"
+                {/* Speed Multiplier */}
+                <div className="flex items-center gap-1.5 bg-slate-800/90 p-1 rounded-lg border border-slate-700">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 px-1">Speed:</span>
+                  {[
+                    { label: '1x', ms: 350 },
+                    { label: '2x', ms: 180 },
+                    { label: '4x', ms: 80 },
+                  ].map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => setSimSpeedMs(s.ms)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${
+                        simSpeedMs === s.ms ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                      }`}
                     >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                      {/* Interactive Map Place Search */}
-                      <MapPlaceSearchControl />
-
-                      {/* Real-time Color-Coded Incident Impact Area Layer */}
-                      <IncidentImpactZoneLayer conditions={conditions} />
-
-                      {/* 3-Tier Color Coded Dispatch Route */}
-                      {(() => {
-                        const routePts = selectedAllocation.route_geojson.geometry.coordinates.map((c) => [c[1], c[0]]);
-                        const isDelayed = selectedAllocation.delivery_status === 'delayed';
-                        const delayRiskVal = selectedAllocation.match_details?.score_breakdown?.delay_risk;
-                        const calculatedRisk = isDelayed
-                          ? 0.86
-                          : delayRiskVal !== undefined
-                          ? 1.0 - parseFloat(delayRiskVal)
-                          : 0.22;
-
-                        return (
-                          <RiskSegmentedRoute
-                            routeCoordinates={routePts}
-                            conditions={conditions}
-                            riskScore={calculatedRisk}
-                            label={`Transit Dispatch #${selectedAllocation.id}`}
-                            statusText={selectedAllocation.delivery_status ? selectedAllocation.delivery_status.replace('_', ' ').toUpperCase() : 'TRANSIT'}
-                            originName={selectedAllocation.match_details?.resource_details?.provider_username || 'Depot'}
-                            destName={selectedAllocation.match_details?.need_details?.district_name || 'Relief Target'}
-                          />
-                        );
-                      })()}
-                      
-                      {/* Source Stockpile Marker */}
-                      <Marker
-                        position={[
-                          selectedAllocation.route_geojson.geometry.coordinates[0][1],
-                          selectedAllocation.route_geojson.geometry.coordinates[0][0],
-                        ]}
-                      >
-                        <Popup>
-                          <div className="text-xs p-1 font-bold text-slate-800">
-                            📦 Source Depot Stockpile
-                          </div>
-                        </Popup>
-                      </Marker>
-
-                      {/* Destination Need Marker */}
-                      <Marker
-                        position={[
-                          selectedAllocation.route_geojson.geometry.coordinates[
-                            selectedAllocation.route_geojson.geometry.coordinates.length - 1
-                          ][1],
-                          selectedAllocation.route_geojson.geometry.coordinates[
-                            selectedAllocation.route_geojson.geometry.coordinates.length - 1
-                          ][0],
-                        ]}
-                      >
-                        <Popup>
-                          <div className="text-xs p-1 font-bold text-slate-800">
-                            🎯 Target Relief Need Sector
-                          </div>
-                        </Popup>
-                      </Marker>
-
-                      {/* Dynamic Simulated Moving Cargo GPS Marker */}
-                      {(() => {
-                        const coords = selectedAllocation.route_geojson?.geometry?.coordinates;
-                        const simPos = getSimulatedPosition(coords, simProgressPercent);
-                        if (!simPos) return null;
-
-                        return (
-                          <Marker position={[simPos.lat, simPos.lon]} icon={liveCargoMarkerIcon}>
-                            <Popup>
-                              <div className="text-xs p-1 text-slate-900 font-sans space-y-1">
-                                <div className="font-extrabold text-emerald-700 flex items-center gap-1">
-                                  <span>🚚 Convoy Vehicle #{selectedAllocation.vehicle}</span>
-                                </div>
-                                <div className="text-[11px] font-bold text-slate-800">
-                                  Progress: {simProgressPercent}% {simProgressPercent === 50 ? '(Midway in transit)' : ''}
-                                </div>
-                                <div className="text-[10px] font-mono text-slate-500">
-                                  GPS: {simPos.lat.toFixed(4)}°N, {simPos.lon.toFixed(4)}°E
-                                </div>
-                                <div className="text-[10px] text-slate-600 font-semibold bg-slate-100 p-1 rounded">
-                                  Status: {simProgressPercent >= 100 ? 'Arrived at Destination' : simProgressPercent === 50 ? 'Cruising Midway Pass' : 'En Route to Target'}
-                                </div>
-                              </div>
-                            </Popup>
-                          </Marker>
-                        );
-                      })()}
-                    </MapContainer>
-
-                    {/* Real-time Severity Divisions Legend */}
-                    <IncidentSeverityLegend
-                      totalIncidents={conditions.length}
-                      className="absolute bottom-3 right-3 shadow-xl"
-                    />
+              {/* Real-time Convoy Telemetry HUD */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">GPS Coordinates</div>
+                  <div className="font-mono font-bold text-emerald-400">
+                    {currentPos.lat.toFixed(4)}°N, {currentPos.lon.toFixed(4)}°E
                   </div>
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">No route geo-geometry calculated for this transit allocation.</p>
-              )}
+                <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">Convoy Speed</div>
+                  <div className="font-mono font-bold text-white">
+                    {isPlaying ? (simSpeedMs === 80 ? '78 km/h' : simSpeedMs === 180 ? '54 km/h' : '38 km/h') : '0 km/h (Standby)'}
+                  </div>
+                </div>
+                <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">Distance Remaining</div>
+                  <div className="font-mono font-bold text-amber-300">
+                    {Math.max((87.3 - (progressPercent / 100) * 87.3), 0).toFixed(1)} km
+                  </div>
+                </div>
+                <div className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">Estimated ETA</div>
+                  <div className="font-mono font-bold text-emerald-300">
+                    {progressPercent >= 100 ? 'Delivered' : `~${Math.round(Math.max((87.3 - (progressPercent / 100) * 87.3) * 0.8, 2))} mins`}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Tactical Map Container */}
+            <div className="w-full h-[460px] relative rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <MapContainer
+                center={[25.00, 92.90]}
+                zoom={10}
+                className="w-full h-full"
+              >
+                {/* Google Maps Road & Satellite Hybrid Base Layer */}
+                <GoogleMapTileLayer defaultLayer="roadmap" />
+
+                {/* Interactive Map Place Search */}
+                <MapPlaceSearchControl />
+
+                {/* Real-time Color-Coded Incident Impact Area Layer */}
+                <IncidentImpactZoneLayer conditions={conditions} />
+
+                {/* Real Paved Highway Road Centerline Polyline (Silchar -> Haflong NH-27) */}
+                <Polyline
+                  positions={routePolylineCoords}
+                  pathOptions={{
+                    color: '#ffffff',
+                    weight: 7,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }}
+                />
+                <Polyline
+                  positions={routePolylineCoords}
+                  pathOptions={{
+                    color: '#2563EB', // Vibrant Blue Asphalt Highway Color
+                    weight: 5,
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }}
+                >
+                  <Popup>
+                    <div className="text-xs p-1 space-y-1">
+                      <div className="font-bold text-slate-900">NH-27 Silchar – Haflong Lifeline Corridor</div>
+                      <div className="text-slate-600">Total Length: 87.3 km • 120 Paved Highway Vertices</div>
+                    </div>
+                  </Popup>
+                </Polyline>
+
+                {/* Start Marker: Silchar Logistics Depot */}
+                <Marker position={[24.83319, 92.77888]}>
+                  <Popup>
+                    <div className="text-xs p-1">
+                      <div className="font-extrabold text-slate-900">📦 Silchar Central Logistics Depot</div>
+                      <div className="text-slate-600 mt-0.5">Corridor Origin (Km 0)</div>
+                    </div>
+                  </Popup>
+                </Marker>
+
+                {/* Destination Marker: Haflong Relief Sector */}
+                <Marker position={[25.16810, 93.02474]}>
+                  <Popup>
+                    <div className="text-xs p-1">
+                      <div className="font-extrabold text-slate-900">🎯 Haflong Emergency Relief Terminal</div>
+                      <div className="text-slate-600 mt-0.5">Destination Relief Sector (Km 87.3)</div>
+                    </div>
+                  </Popup>
+                </Marker>
+
+                {/* Dynamic Moving Convoy Vehicle GPS Pin */}
+                <Marker position={[currentPos.lat, currentPos.lon]} icon={createFleetConvoyIcon(isPlaying)}>
+                  <Popup>
+                    <div className="text-xs p-1 space-y-1 text-slate-900 font-sans">
+                      <div className="font-black text-emerald-700 flex items-center gap-1">
+                        <span>🚚 AS-11-BC-4401</span>
+                        <span className="text-[10px] text-slate-500 font-normal">5-Ton Relief Convoy</span>
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-800">
+                        {currentPos.name}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-500">
+                        GPS: {currentPos.lat.toFixed(4)}°N, {currentPos.lon.toFixed(4)}°E
+                      </div>
+                      <div className="text-[10px] font-semibold bg-emerald-50 text-emerald-800 p-1 rounded border border-emerald-200">
+                        Progress: {progressPercent}% ({((progressPercent / 100) * 87.3).toFixed(1)} / 87.3 km)
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              </MapContainer>
+
+              {/* Floating Severity Legend */}
+              <IncidentSeverityLegend
+                totalIncidents={conditions.length}
+                className="absolute bottom-3 right-3 shadow-xl"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
