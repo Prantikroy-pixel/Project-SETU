@@ -66,6 +66,19 @@ const inspectorIcon = new L.DivIcon({
   popupAnchor: [0, -14],
 });
 
+function formatRainActiveTime(durationHours) {
+  if (!durationHours || durationHours <= 0) return 'No Active Rain';
+  const now = new Date();
+  const startTime = new Date(now.getTime() - durationHours * 60 * 60 * 1000);
+  let hours = startTime.getHours();
+  const minutes = startTime.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minStr = minutes < 10 ? '0' + minutes : minutes;
+  return `Since ${hours}:${minStr} ${ampm} (${durationHours.toFixed(1)} hrs continuous)`;
+}
+
 export default function MapLocationInspector({
   conditions = [],
   onLocationSelected,
@@ -305,30 +318,76 @@ export default function MapLocationInspector({
                   <span className="text-xs font-black tracking-tight">{riskPercent}%</span>
                 </div>
 
-                {/* Urban Flash Flood Forecast Alert Box */}
-                {(features.is_urban_flash_flood || (features.drainage_quality <= 1.5 && (features.rainfall_mm >= 45 || features.rainfall_duration_hours >= 3))) ? (
-                  <div className="p-2.5 bg-amber-500/15 border-l-4 border-amber-600 rounded-r-md text-slate-900 text-xs space-y-1">
-                    <div className="font-extrabold uppercase text-[10px] text-amber-800 flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-bounce" />
-                      <span>URBAN FLASH FLOOD PREDICTION DETECTED</span>
+                {/* 3-Feature Compound Flood Predictor Matrix */}
+                {(() => {
+                  const rainDur = features.rainfall_duration_hours || 4.0;
+                  const drainageVal = features.drainage_quality || 1.10;
+                  const vegVal = features.vegetation_cover || 0.25;
+                  const rainMm = features.rainfall_mm || 45.0;
+                  const isFloodPredicted = features.is_urban_flash_flood || (drainageVal <= 1.5 && (rainMm >= 45 || rainDur >= 3));
+
+                  return (
+                    <div className="bg-slate-900 text-white p-2.5 rounded-lg border border-slate-700/80 space-y-2 shadow-md">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-sky-400" />
+                          3-Feature Flood Predictor
+                        </span>
+                        <span
+                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                            isFloodPredicted ? 'bg-red-600 text-white animate-pulse' : 'bg-emerald-600 text-white'
+                          }`}
+                        >
+                          {isFloodPredicted ? '🚨 FLOOD PREDICTED' : '✅ NO FLOOD RISK'}
+                        </span>
+                      </div>
+
+                      {/* 3 Core Factors Breakdown */}
+                      <div className="space-y-1 text-[10px] font-mono">
+                        {/* 1. Rainfall Start Time & Duration */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">1. Rain Active:</span>
+                          <span className="font-bold text-sky-300">{formatRainActiveTime(rainDur)}</span>
+                        </div>
+
+                        {/* 2. Drainage Capacity */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">2. Drainage Capacity:</span>
+                          <span className={`font-bold ${drainageVal <= 1.5 ? 'text-red-400 font-black' : 'text-emerald-400'}`}>
+                            {drainageVal.toFixed(2)} km/km² ({drainageVal <= 1.5 ? 'Very Poor / Clogged' : 'Optimal Flow'})
+                          </span>
+                        </div>
+
+                        {/* 3. Vegetation Root Matrix */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">3. Vegetation Cover:</span>
+                          <span className={`font-bold ${vegVal <= 0.40 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {Math.round(vegVal * 100)}% NDVI ({vegVal <= 0.40 ? 'Sparse / Barren Soil' : 'Dense Forest Matrix'})
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Prediction Summary & Forecast Window */}
+                      <div
+                        className={`p-2 rounded text-[10px] leading-tight font-sans font-semibold border ${
+                          isFloodPredicted
+                            ? 'bg-red-950/80 border-red-700/60 text-red-200'
+                            : 'bg-emerald-950/70 border-emerald-800/60 text-emerald-200'
+                        }`}
+                      >
+                        {isFloodPredicted ? (
+                          <span>
+                            ⚠️ <strong>Flash Flood Warning:</strong> Continuous rain for {rainDur.toFixed(1)}h with poor drainage ({drainageVal.toFixed(2)}) and sparse vegetation ({Math.round(vegVal * 100)}%). High probability of road submergence in <strong>{address?.placeName || 'this sector'}</strong> within <strong>1–3 hours</strong>.
+                          </span>
+                        ) : (
+                          <span>
+                            ✅ <strong>Nominal Runoff:</strong> Drainage ({drainageVal.toFixed(2)}) and vegetation ({Math.round(vegVal * 100)}%) are sufficient for current rainfall. No flooding predicted.
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-[11px] font-semibold text-slate-800 leading-tight">
-                      Continuous rain for <strong>{features.rainfall_duration_hours || 4.0} hours</strong> in urban basin ({address?.placeName || 'Maligaon/Guwahati'}) with clogged storm drainage ({features.drainage_quality || 1.10} km/km²).
-                    </p>
-                    <div className="text-[10px] font-extrabold text-amber-900 pt-0.5 border-t border-amber-300/60 flex items-center gap-1">
-                      <span>⏱️ Estimated Road Submergence Window:</span>
-                      <span className="underline">Next 1–3 Hours</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-2 bg-emerald-50/90 border border-emerald-200 rounded-md text-[10px] font-bold text-emerald-900 flex items-center justify-between">
-                    <span className="flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Flood Forecast: Nominal Basin Drainage</span>
-                    </span>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black uppercase">SAFE</span>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* 6-Tile Environmental Metrics Grid */}
                 <div className="grid grid-cols-2 gap-1.5">
