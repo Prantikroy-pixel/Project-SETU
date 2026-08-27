@@ -262,8 +262,11 @@ export default function MapLocationInspector({
   return (
     <Marker ref={markerRef} position={[selectedPoint.lat, selectedPoint.lon]} icon={inspectorIcon}>
       {showDetailedPopup && (
-        <Popup className="setu-custom-map-popup" minWidth={310} maxWidth={340}>
-          <div className="p-1 text-slate-800 font-sans">
+        <Popup className="setu-custom-map-popup" minWidth={320} maxWidth={360}>
+          <div className="p-1 text-slate-800 font-sans max-h-[72vh] overflow-y-auto touch-pan-y pr-0.5">
+            {/* Slidable Top Drag Pill Handle */}
+            <div className="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mb-2 cursor-grab hover:bg-slate-400 transition-colors shrink-0"></div>
+
             {/* Header with Coordinates & Location Title */}
             <div className="border-b border-slate-200/80 pb-2 mb-2">
               <div className="flex items-center justify-between gap-1 mb-1">
