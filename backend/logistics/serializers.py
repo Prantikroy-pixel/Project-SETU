@@ -7,6 +7,10 @@ from .models import Vehicle
 from core.spatial_compat import HAS_GIS
 from core.serializers import GeoPointField
 
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
 if HAS_GIS:
     from django.contrib.gis.geos import Point
 else:
@@ -14,6 +18,11 @@ else:
 
 
 class VehicleSerializer(serializers.ModelSerializer):
+    operator = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True
+    )
     operator_username = serializers.CharField(source='operator.username', read_only=True)
     current_location = GeoPointField(required=False, allow_null=True)
     latitude = serializers.FloatField(write_only=True, required=False)
@@ -42,8 +51,9 @@ class VehicleSerializer(serializers.ModelSerializer):
             validated_data['current_location'] = Point(longitude, latitude)
 
         request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated and 'operator' not in validated_data:
-            validated_data['operator'] = request.user
+        if request and request.user and request.user.is_authenticated:
+            if not validated_data.get('operator'):
+                validated_data['operator'] = request.user
 
         return super().create(validated_data)
 
