@@ -1,5 +1,6 @@
 import React from 'react';
-import { Polyline, Popup } from 'react-leaflet';
+import { Polyline, Popup, Marker } from 'react-leaflet';
+import L from 'leaflet';
 import { Navigation } from 'lucide-react';
 
 /**
