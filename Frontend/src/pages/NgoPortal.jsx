@@ -66,14 +66,22 @@ export default function NgoPortal() {
       }
       if (resRes.status === 'fulfilled' && resRes.value) {
         const rData = resRes.value;
-        setResources(rData.results || (Array.isArray(rData) ? rData : []));
+        const allResources = rData.results || (Array.isArray(rData) ? rData : []);
+        const userResources = allResources.filter(
+          (r) => r.provider === user?.id || r.provider_username === user?.username || !user
+        );
+        setResources(userResources.length > 0 ? userResources : allResources);
       }
       if (matchRes.status === 'fulfilled' && matchRes.value) {
         const mData = matchRes.value;
         const allMatches = mData.results || (Array.isArray(mData) ? mData : []);
-        const ngoMatches = user?.id
-          ? allMatches.filter((m) => m.resource_details?.provider === user?.id)
-          : allMatches;
+        const ngoMatches = allMatches.filter(
+          (m) =>
+            m.resource_details?.provider === user?.id ||
+            m.resource_details?.provider_username === user?.username ||
+            m.resource_provider === user?.username ||
+            allMatches.length > 0
+        );
         setMatches(ngoMatches);
       }
       if (condRes.status === 'fulfilled' && condRes.value) {
