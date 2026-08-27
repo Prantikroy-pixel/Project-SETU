@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { vehicleAPI, allocationAPI, conditionAPI } from '../api';
-import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
-import { AlertCircle, CheckCircle, Truck, Play, RefreshCw, MapPin, Eye } from 'lucide-react';
+import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
+import { AlertCircle, CheckCircle, Truck, Play, RefreshCw, MapPin, Eye, Lock, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 // Custom dynamic moving cargo marker icon
@@ -485,6 +486,28 @@ export default function TransportPortal() {
 
               {selectedAllocation.route_geojson ? (
                 <div className="space-y-3">
+                  {/* Corridor Summary & District Admin Reroute Authority Badge */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <h4 className="font-extrabold text-xs text-slate-900">
+                          {selectedAllocation.route_geojson.properties?.corridor_name || 'NH-27 Silchar – Haflong Lifeline Corridor (88.4 km)'}
+                        </h4>
+                      </div>
+                      <div className="text-[11px] text-slate-600 font-medium flex items-center gap-2">
+                        <span>📍 <strong>Origin:</strong> {selectedAllocation.route_geojson.properties?.origin_name || 'Silchar Central Logistics Depot'}</span>
+                        <span>➔</span>
+                        <span>🎯 <strong>Target:</strong> {selectedAllocation.route_geojson.properties?.destination_name || 'Haflong Dima Hasao Sector'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold shrink-0">
+                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Rerouting Control: <span className="underline font-black">District Admin Only</span></span>
+                    </div>
+                  </div>
+
                   {/* Interactive Vehicle Simulation Control Panel */}
                   <div className="bg-slate-900 text-white p-4 rounded-xl shadow-sm space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
@@ -610,6 +633,9 @@ export default function TransportPortal() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
+
+                      {/* Interactive Map Place Search */}
+                      <MapPlaceSearchControl />
 
                       {/* Real-time Color-Coded Incident Impact Area Layer */}
                       <IncidentImpactZoneLayer conditions={conditions} />
