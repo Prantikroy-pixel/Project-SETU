@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { resourceAPI, matchAPI, districtAPI, conditionAPI } from '../api';
-import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import { RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
@@ -341,8 +341,7 @@ export default function NgoPortal() {
 
               {/* Existing NGO Depot Stockpiles */}
               {resources.map((r) => {
-                const lat = r.location?.latitude || r.latitude;
-                const lon = r.location?.longitude || r.longitude;
+                const { lat, lon } = parseCoords(r);
                 if (!lat || !lon) return null;
                 return (
                   <Marker key={`depot-${r.id}`} position={[lat, lon]}>

@@ -209,6 +209,35 @@ function createIncidentMarkerIcon(severity) {
 }
 
 /**
+ * Resilient Coordinate Extraction Helper
+ * Extracts latitude and longitude from flat objects, nested GeoJSON Point objects, or coordinate arrays.
+ */
+export function parseCoords(obj) {
+  if (!obj) return { lat: null, lon: null };
+  const rawLat =
+    obj.latitude ??
+    obj.lat ??
+    obj.location?.latitude ??
+    (Array.isArray(obj.location?.coordinates) ? obj.location.coordinates[1] : null) ??
+    (Array.isArray(obj.coordinates) ? obj.coordinates[1] : null);
+
+  const rawLon =
+    obj.longitude ??
+    obj.lon ??
+    obj.location?.longitude ??
+    (Array.isArray(obj.location?.coordinates) ? obj.location.coordinates[0] : null) ??
+    (Array.isArray(obj.coordinates) ? obj.coordinates[0] : null);
+
+  const lat = parseFloat(rawLat);
+  const lon = parseFloat(rawLon);
+
+  return {
+    lat: isNaN(lat) ? null : lat,
+    lon: isNaN(lon) ? null : lon,
+  };
+}
+
+/**
  * Main Incident Impact Zone Map Layer:
  * Plots real-time color-coded impact zones & affected radii for every active incident.
  */
@@ -223,8 +252,7 @@ export function IncidentImpactZoneLayer({
     <>
       {/* 1. Render Live Incident Affected Zones */}
       {conditions.map((condition) => {
-        const lat = condition.latitude || condition.lat || (condition.location && condition.location.latitude);
-        const lon = condition.longitude || condition.lon || (condition.location && condition.location.longitude);
+        const { lat, lon } = parseCoords(condition);
 
         if (!lat || !lon) return null;
 
@@ -359,33 +387,31 @@ export function IncidentImpactZoneLayer({
       })}
 
       {/* 2. Live Target Incident Preview (When Officer/Citizen is picking coordinates) */}
-      {previewLocation && previewLocation.lat && previewLocation.lon && (
-        <>
-          {(() => {
-            const previewSeverity = getIncidentSeverity(previewLocation);
-            const radius = previewLocation.radiusMeters || previewSeverity.radiusMeters;
-            return (
-              <Circle
-                center={[previewLocation.lat, previewLocation.lon]}
-                radius={radius}
-                pathOptions={{
-                  color: previewSeverity.color,
-                  weight: 2.5,
-                  fillColor: previewSeverity.fillColor,
-                  fillOpacity: 0.45,
-                  dashArray: '4, 4',
-                }}
-              >
-                <Tooltip permanent direction="top" offset={[0, -10]}>
-                  <div className="text-[10px] font-black text-slate-900 bg-white/95 px-1 rounded shadow-xs">
-                    Target Impact Zone: {(radius / 1000).toFixed(1)} km ({previewSeverity.shortLabel})
-                  </div>
-                </Tooltip>
-              </Circle>
-            );
-          })()}
-        </>
-      )}
+      {previewLocation && (() => {
+        const { lat, lon } = parseCoords(previewLocation);
+        if (!lat || !lon) return null;
+        const previewSeverity = getIncidentSeverity(previewLocation);
+        const radius = previewLocation.radiusMeters || previewSeverity.radiusMeters;
+        return (
+          <Circle
+            center={[lat, lon]}
+            radius={radius}
+            pathOptions={{
+              color: previewSeverity.color,
+              weight: 2.5,
+              fillColor: previewSeverity.fillColor,
+              fillOpacity: 0.45,
+              dashArray: '4, 4',
+            }}
+          >
+            <Tooltip permanent direction="top" offset={[0, -10]}>
+              <div className="text-[10px] font-black text-slate-900 bg-white/95 px-1 rounded shadow-xs">
+                Target Impact Zone: {(radius / 1000).toFixed(1)} km ({previewSeverity.shortLabel})
+              </div>
+            </Tooltip>
+          </Circle>
+        );
+      })()}
     </>
   );
 }

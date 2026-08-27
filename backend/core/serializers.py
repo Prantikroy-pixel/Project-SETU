@@ -154,6 +154,13 @@ class NeedSerializer(serializers.ModelSerializer):
             validated_data['location'] = Point(longitude, latitude)
         return super().update(instance, validated_data)
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.location:
+            ret['latitude'] = instance.location.y
+            ret['longitude'] = instance.location.x
+        return ret
+
 
 class ResourceSerializer(serializers.ModelSerializer):
     provider_username = serializers.CharField(source='provider.username', read_only=True)
@@ -208,6 +215,13 @@ class ResourceSerializer(serializers.ModelSerializer):
             validated_data['location'] = Point(longitude, latitude)
         return super().update(instance, validated_data)
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.location:
+            ret['latitude'] = instance.location.y
+            ret['longitude'] = instance.location.x
+        return ret
+
 
 class ConditionSerializer(serializers.ModelSerializer):
     reported_by_username = serializers.CharField(source='reported_by.username', read_only=True)
@@ -253,6 +267,13 @@ class ConditionSerializer(serializers.ModelSerializer):
             validated_data['reported_by'] = request.user
 
         return super().create(validated_data)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if instance.location:
+            ret['latitude'] = instance.location.y
+            ret['longitude'] = instance.location.x
+        return ret
 
 
 class AllocationSerializer(serializers.ModelSerializer):

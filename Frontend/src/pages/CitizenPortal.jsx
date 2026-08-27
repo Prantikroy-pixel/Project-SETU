@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { useAuth } from '../context/AuthContext';
 import { needAPI, alertAPI, conditionAPI, districtAPI } from '../api';
-import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
+import { IncidentImpactZoneLayer, IncidentSeverityLegend, parseCoords } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
 import MapLocationInspector from '../components/MapLocationInspector';
 import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
@@ -402,8 +402,7 @@ export default function CitizenPortal() {
 
                 {/* Open Needs Markers */}
                 {needs.map((n) => {
-                  const lat = n.location?.latitude || n.latitude;
-                  const lon = n.location?.longitude || n.longitude;
+                  const { lat, lon } = parseCoords(n);
                   if (!lat || !lon) return null;
                   return (
                     <Marker key={`need-${n.id}`} position={[lat, lon]} icon={needIcon}>

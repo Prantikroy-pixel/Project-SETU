@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { conditionAPI } from '../api';
+import { parseCoords } from './IncidentImpactZoneLayer';
 
 // Regional fallback hubs for instantaneous offline / resilient reverse geocoding
 const NER_HUBS = [
@@ -160,8 +161,7 @@ export default function MapLocationInspector({
 
         if (Array.isArray(conditions) && conditions.length > 0) {
           for (const cond of conditions) {
-            const cLat = cond.location?.latitude || cond.latitude;
-            const cLon = cond.location?.longitude || cond.longitude;
+            const { lat: cLat, lon: cLon } = parseCoords(cond);
             if (cLat && cLon) {
               const dLat = (cLat - lat) * 111.0;
               const dLon = (cLon - lon) * 111.0 * Math.cos((lat * Math.PI) / 180);
