@@ -206,17 +206,25 @@ export default function DistrictAdminNotificationFeed({ onApproveStock, onDebarS
                     <div className="flex items-start gap-2.5">
                       {/* Icon */}
                       <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold border ${
                           isDisruption
-                            ? 'bg-red-100 text-red-700'
+                            ? 'bg-red-50 text-red-600 border-red-200'
                             : isStock
-                            ? 'bg-amber-100 text-amber-800'
+                            ? 'bg-amber-50 text-amber-600 border-amber-200'
                             : isTransport
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-blue-50 text-blue-600 border-blue-200'
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                         }`}
                       >
-                        {isDisruption ? '🚨' : isStock ? '📦' : isTransport ? '🚚' : '🆘'}
+                        {isDisruption ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                        ) : isStock ? (
+                          <Package className="w-3.5 h-3.5 text-amber-600" />
+                        ) : isTransport ? (
+                          <Truck className="w-3.5 h-3.5 text-blue-600" />
+                        ) : (
+                          <HeartHandshake className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
                       </div>
 
                       <div className="flex-1 space-y-1">

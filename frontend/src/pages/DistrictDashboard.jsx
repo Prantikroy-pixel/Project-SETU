@@ -11,6 +11,7 @@ import MapPlaceSearchControl from '../components/MapPlaceSearchControl';
 import GoogleMapTileLayer from '../components/GoogleMapTileLayer';
 import CustomSelect from '../components/CustomSelect';
 import DistrictAdminNotificationFeed from '../components/DistrictAdminNotificationFeed';
+import StockCategoryBadge from '../components/StockCategoryBadge';
 import AiRiskAnalyzer from '../components/AiRiskAnalyzer';
 import {
   Activity,
@@ -69,28 +70,39 @@ export default function DistrictDashboard() {
   const [stockFilter, setStockFilter] = useState('all');
 
   const handleApproveResource = async (id) => {
+    // 1. Instant optimistic real-time UI state update
+    setResourceList((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, verification_status: 'approved' } : r))
+    );
+    setStatusMsg({ text: `Stockpile #${id} approved & verified for active distribution.`, type: 'success' });
+
     try {
       await resourceAPI.approve(id);
+      // Background sync
       fetchDashboardData();
       fetchAdminListData();
-      setStatusMsg({ text: `Stockpile #${id} approved & verified for active distribution.`, type: 'success' });
     } catch (err) {
       console.error('Failed to approve resource', err);
-      setStatusMsg({ text: `Approval failed for stockpile #${id}`, type: 'error' });
     }
   };
 
-  const handleDebarResource = async (id) => {
-    const reason = window.prompt('Specify reason for debarring this stockpile:', 'Compliance standard check failed');
+  const handleDebarResource = async (id, passedReason) => {
+    const reason = passedReason || window.prompt('Specify reason for debarring this stockpile:', 'Compliance standard check failed');
     if (reason === null) return;
+
+    // 1. Instant optimistic real-time UI state update
+    setResourceList((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, verification_status: 'debarred', debar_reason: reason } : r))
+    );
+    setStatusMsg({ text: `Stockpile #${id} debarred (${reason}).`, type: 'info' });
+
     try {
       await resourceAPI.debar(id, reason);
+      // Background sync
       fetchDashboardData();
       fetchAdminListData();
-      setStatusMsg({ text: `Stockpile #${id} debarred (${reason}).`, type: 'info' });
     } catch (err) {
       console.error('Failed to debar resource', err);
-      setStatusMsg({ text: `Debar failed for stockpile #${id}`, type: 'error' });
     }
   };
 
@@ -1639,11 +1651,11 @@ export default function DistrictDashboard() {
                     return (
                       <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="p-3.5 font-bold text-slate-900">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">
-                              {r.type === 'food' ? '🍚' : r.type === 'water' ? '💧' : r.type === 'medicine' ? '💊' : r.type === 'construction_material' ? '🏗️' : '📦'}
+                          <div className="flex items-center gap-2.5">
+                            <StockCategoryBadge type={r.type} size="sm" showLabel={false} />
+                            <span className="font-bold text-slate-900 text-xs">
+                              {r.name || r.item_type || `${r.type ? r.type.replace('_', ' ') : 'Resource'} Stock #${r.id}`}
                             </span>
-                            <span>{r.name || r.item_type || `${r.type ? r.type.replace('_', ' ') : 'Resource'} Stock #${r.id}`}</span>
                           </div>
                         </td>
                         <td className="p-3.5 font-semibold text-slate-700 uppercase text-[11px]">{r.type ? r.type.replace('_', ' ') : 'General'}</td>
