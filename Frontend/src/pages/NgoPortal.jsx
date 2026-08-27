@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaf
 import { resourceAPI, matchAPI, districtAPI, conditionAPI } from '../api';
 import { IncidentImpactZoneLayer, IncidentSeverityLegend } from '../components/IncidentImpactZoneLayer';
 import RealtimeTelemetryBanner from '../components/RealtimeTelemetryBanner';
-import { RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
+import { RiskLegendControl, RiskSegmentedRoute } from '../components/RiskCorridorMapLayer';
 import { AlertCircle, CheckCircle, Package, PlusCircle, MapPin, Eye, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
