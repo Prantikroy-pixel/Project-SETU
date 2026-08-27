@@ -2,6 +2,7 @@
 Views and ViewSets for core SETU app.
 """
 
+import logging
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,12 +20,14 @@ from .services import trigger_condition_alerts
 from .boundary_service import BorderTrackingService, RealtimeBoundaryFetcher
 from .institution_service import InstitutionIngestionService
 from .validators import validate_uploaded_media
-from matching_engine.risk_model.predict import predict_risk
+from matching_engine.risk_model.predict import predict_risk, predict_route_risk
 from accounts.permissions import (
     IsAdminUserOrReadOnly, IsDistrictAdmin, IsOwnerOrAdminOrReadOnly,
     IsFieldOfficerOrAdminOrReadOnly, IsTransportOperatorOrAdminOrReadOnly,
     IsVerifiedProviderOrReadOnly, IsOwnerOrAdmin
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DistrictViewSet(viewsets.ModelViewSet):
@@ -262,30 +265,43 @@ class ConditionViewSet(viewsets.ModelViewSet):
         )
         return Response(MediaAttachmentSerializer(attachment).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=False, methods=['get'], url_path='predict-risk')
+    @action(detail=False, methods=['get', 'post'], url_path='predict-risk', permission_classes=[permissions.AllowAny])
     def predict_risk_view(self, request):
         """
-        GET /api/conditions/predict-risk/?lat=24.83&lon=92.78&rainfall=80&slope=30&use_realtime=true
+        GET / POST /api/conditions/predict-risk/?lat=24.83&lon=92.78&rainfall=80&slope=30&use_realtime=true
         Evaluates disruption hazard score using the trained ML model & live real-time fetcher.
         """
         try:
-            lat = float(request.query_params.get('lat', request.query_params.get('latitude', 24.8333)))
-            lon = float(request.query_params.get('lon', request.query_params.get('longitude', 92.7789)))
+            if request.method == 'POST':
+                data = request.data or {}
+                lat = float(data.get('lat') or data.get('latitude') or 24.8333)
+                lon = float(data.get('lon') or data.get('longitude') or 92.7789)
+                rainfall_val = data.get('rainfall') or data.get('rainfall_24h')
+                rainfall_dur_val = data.get('rainfall_duration_hours') or data.get('duration')
+                slope_val = data.get('slope')
+                elevation_val = data.get('elevation') or data.get('elevation_m')
+                soil_sat_val = data.get('soil_saturation')
+                drainage_val = data.get('drainage') or data.get('drainage_quality')
+                veg_val = data.get('vegetation') or data.get('vegetation_cover')
+                use_realtime = data.get('use_realtime', True)
+            else:
+                lat = float(request.query_params.get('lat', request.query_params.get('latitude', 24.8333)))
+                lon = float(request.query_params.get('lon', request.query_params.get('longitude', 92.7789)))
 
-            def _get_float_param(key):
-                val = request.query_params.get(key)
-                return float(val) if val is not None and val != '' else None
+                def _get_float_param(key):
+                    val = request.query_params.get(key)
+                    return float(val) if val is not None and val != '' else None
 
-            rainfall_val = _get_float_param('rainfall') or _get_float_param('rainfall_24h')
-            rainfall_dur_val = _get_float_param('rainfall_duration_hours') or _get_float_param('duration') or _get_float_param('duration_hours')
-            slope_val = _get_float_param('slope')
-            elevation_val = _get_float_param('elevation') or _get_float_param('elevation_m')
-            soil_sat_val = _get_float_param('soil_saturation')
-            drainage_val = _get_float_param('drainage') or _get_float_param('drainage_quality')
-            veg_val = _get_float_param('vegetation') or _get_float_param('vegetation_cover')
+                rainfall_val = _get_float_param('rainfall') or _get_float_param('rainfall_24h')
+                rainfall_dur_val = _get_float_param('rainfall_duration_hours') or _get_float_param('duration') or _get_float_param('duration_hours')
+                slope_val = _get_float_param('slope')
+                elevation_val = _get_float_param('elevation') or _get_float_param('elevation_m')
+                soil_sat_val = _get_float_param('soil_saturation')
+                drainage_val = _get_float_param('drainage') or _get_float_param('drainage_quality')
+                veg_val = _get_float_param('vegetation') or _get_float_param('vegetation_cover')
 
-            use_realtime_param = request.query_params.get('use_realtime', 'true').lower()
-            use_realtime = use_realtime_param not in ('0', 'false', 'no', 'f')
+                use_realtime_param = request.query_params.get('use_realtime', 'true').lower()
+                use_realtime = use_realtime_param not in ('0', 'false', 'no', 'f')
 
             result = predict_risk(
                 lat=lat,
@@ -326,7 +342,7 @@ class ConditionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Prediction failed: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['get', 'post'], url_path='predict-route-risk')
+    @action(detail=False, methods=['get', 'post'], url_path='predict-route-risk', permission_classes=[permissions.AllowAny])
     def predict_route_risk_view(self, request):
         """
         POST / GET /api/conditions/predict-route-risk/
@@ -373,15 +389,34 @@ class ConditionViewSet(viewsets.ModelViewSet):
                     [24.8333, 92.7789],
                 ]
 
+            # Validate waypoints structure
+            valid_waypoints = []
+            for wp in raw_waypoints:
+                if isinstance(wp, (list, tuple)) and len(wp) >= 2:
+                    valid_waypoints.append([float(wp[0]), float(wp[1])])
+                elif isinstance(wp, dict) and ('lat' in wp or 'latitude' in wp) and ('lon' in wp or 'longitude' in wp):
+                    w_lat = float(wp.get('lat') or wp.get('latitude'))
+                    w_lon = float(wp.get('lon') or wp.get('longitude'))
+                    valid_waypoints.append([w_lat, w_lon])
+
+            if not valid_waypoints:
+                return Response(
+                    {'error': 'Invalid waypoints format. Provide a list of [latitude, longitude] pairs.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             result = predict_route_risk(
-                waypoints=raw_waypoints,
+                waypoints=valid_waypoints,
                 buffer_km=buffer_km,
                 use_realtime=use_realtime,
                 custom_features=custom_features
             )
             return Response(result)
+        except (ValueError, TypeError, KeyError) as ve:
+            return Response({'error': f'Invalid request payload: {str(ve)}'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': f'Route risk prediction failed: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            logger.exception("Unexpected exception in predict_route_risk_view: %s", e)
+            return Response({'error': 'Route risk prediction engine encountered an internal server error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AllocationViewSet(viewsets.ModelViewSet):
