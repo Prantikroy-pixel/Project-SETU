@@ -305,47 +305,106 @@ export default function MapLocationInspector({
                   <span className="text-xs font-black tracking-tight">{riskPercent}%</span>
                 </div>
 
-                {/* 4-Tile Environmental Metrics Grid */}
+                {/* Urban Flash Flood Forecast Alert Box */}
+                {(features.is_urban_flash_flood || (features.drainage_quality <= 1.5 && (features.rainfall_mm >= 45 || features.rainfall_duration_hours >= 3))) ? (
+                  <div className="p-2.5 bg-amber-500/15 border-l-4 border-amber-600 rounded-r-md text-slate-900 text-xs space-y-1">
+                    <div className="font-extrabold uppercase text-[10px] text-amber-800 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-bounce" />
+                      <span>URBAN FLASH FLOOD PREDICTION DETECTED</span>
+                    </div>
+                    <p className="text-[11px] font-semibold text-slate-800 leading-tight">
+                      Continuous rain for <strong>{features.rainfall_duration_hours || 4.0} hours</strong> in urban basin ({address?.placeName || 'Maligaon/Guwahati'}) with clogged storm drainage ({features.drainage_quality || 1.10} km/km²).
+                    </p>
+                    <div className="text-[10px] font-extrabold text-amber-900 pt-0.5 border-t border-amber-300/60 flex items-center gap-1">
+                      <span>⏱️ Estimated Road Submergence Window:</span>
+                      <span className="underline">Next 1–3 Hours</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2 bg-emerald-50/90 border border-emerald-200 rounded-md text-[10px] font-bold text-emerald-900 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Flood Forecast: Nominal Basin Drainage</span>
+                    </span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black uppercase">SAFE</span>
+                  </div>
+                )}
+
+                {/* 6-Tile Environmental Metrics Grid */}
                 <div className="grid grid-cols-2 gap-1.5">
+                  {/* 24h Rainfall */}
                   <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase">
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase">
                       <CloudRain className="w-3 h-3 text-blue-600" />
                       <span>24h Rainfall</span>
                     </div>
-                    <div className="text-sm font-black text-slate-900 mt-0.5">
+                    <div className="text-xs font-black text-slate-900 mt-0.5">
                       {features.rainfall_mm !== undefined ? `${features.rainfall_mm} mm` : '--'}
                     </div>
                   </div>
 
+                  {/* Rain Duration */}
                   <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase">
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase">
+                      <Droplets className="w-3 h-3 text-indigo-600" />
+                      <span>Rain Duration</span>
+                    </div>
+                    <div className="text-xs font-black text-slate-900 mt-0.5">
+                      {features.rainfall_duration_hours !== undefined ? `${features.rainfall_duration_hours} hrs` : '1.0 hrs'}
+                      {features.rainfall_intensity_mm_hr ? (
+                        <span className="text-[9px] font-semibold text-slate-500 block">
+                          ({features.rainfall_intensity_mm_hr} mm/h)
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Drainage Quality */}
+                  <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase">
+                      <Compass className="w-3 h-3 text-teal-600" />
+                      <span>Drainage Status</span>
+                    </div>
+                    <div className="text-xs font-black text-slate-900 mt-0.5 flex items-center justify-between">
+                      <span>{features.drainage_quality !== undefined ? `${features.drainage_quality}` : '2.10'}</span>
+                      <span className={`text-[8px] font-extrabold uppercase px-1 rounded ${
+                        (features.drainage_quality || 2.1) <= 1.5 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {(features.drainage_quality || 2.1) <= 1.5 ? 'Poor' : 'Optimal'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Vegetation Cover */}
+                  <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase">
+                      <Layers className="w-3 h-3 text-green-600" />
+                      <span>Vegetation Cover</span>
+                    </div>
+                    <div className="text-xs font-black text-slate-900 mt-0.5">
+                      {features.vegetation_cover !== undefined ? `${Math.round(features.vegetation_cover * 100)}% NDVI` : '58%'}
+                    </div>
+                  </div>
+
+                  {/* Slope Gradient */}
+                  <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase">
                       <Mountain className="w-3 h-3 text-amber-600" />
                       <span>Slope Gradient</span>
                     </div>
-                    <div className="text-sm font-black text-slate-900 mt-0.5">
+                    <div className="text-xs font-black text-slate-900 mt-0.5">
                       {features.slope_degrees !== undefined ? `${features.slope_degrees}°` : '--'}
                     </div>
                   </div>
 
+                  {/* Elevation */}
                   <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase">
-                      <Compass className="w-3 h-3 text-indigo-600" />
+                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase">
+                      <MapPin className="w-3 h-3 text-slate-600" />
                       <span>Elevation</span>
                     </div>
-                    <div className="text-sm font-black text-slate-900 mt-0.5">
+                    <div className="text-xs font-black text-slate-900 mt-0.5">
                       {features.elevation_m !== undefined ? `${Math.round(features.elevation_m)} m` : '--'}
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-2 rounded-md border border-slate-200/70">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase">
-                      <Droplets className="w-3 h-3 text-cyan-600" />
-                      <span>Soil Moisture</span>
-                    </div>
-                    <div className="text-sm font-black text-slate-900 mt-0.5">
-                      {features.soil_saturation !== undefined
-                        ? `${Math.round(features.soil_saturation * 100)}%`
-                        : '--'}
                     </div>
                   </div>
                 </div>
@@ -354,7 +413,7 @@ export default function MapLocationInspector({
                 {hazardData.explanation && (
                   <div className="bg-blue-50/70 border border-blue-100 rounded-md p-2 text-[11px] text-slate-700 leading-relaxed font-medium">
                     <div className="font-bold text-blue-900 text-[10px] uppercase mb-0.5 flex items-center gap-1">
-                      <span>🤖 AI Analysis</span>
+                      <span>🤖 AI Situational Forecast</span>
                     </div>
                     {hazardData.explanation}
                   </div>
