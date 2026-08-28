@@ -15,6 +15,10 @@ import {
   Sparkles,
   ExternalLink,
   ChevronRight,
+  CheckCircle2,
+  Clock,
+  Trees,
+  Activity,
 } from 'lucide-react';
 import { conditionAPI } from '../api';
 import { parseCoords } from './IncidentImpactZoneLayer';
@@ -332,61 +336,80 @@ export default function MapLocationInspector({
                   const isFloodPredicted = Boolean(features.is_urban_flash_flood) || (drainageVal <= 1.5 && (rainMm >= 45.0 || rainDur >= 3.0));
 
                   return (
-                    <div className="bg-slate-900 text-white p-2.5 rounded-lg border border-slate-700/80 space-y-2 shadow-md">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-sky-400" />
-                          3-Feature Flood Predictor
+                    <div className="bg-slate-900 text-white p-3 rounded-xl border border-slate-800 space-y-2.5 shadow-md">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-sky-400" />
+                          Flood Predictor Matrix
                         </span>
                         <span
-                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
-                            isFloodPredicted ? 'bg-red-600 text-white animate-pulse' : 'bg-emerald-600 text-white'
+                          className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            isFloodPredicted ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                           }`}
                         >
-                          {isFloodPredicted ? '🚨 FLOOD PREDICTED' : '✅ NO FLOOD RISK'}
+                          {isFloodPredicted ? (
+                            <>
+                              <ShieldAlert className="w-3 h-3 text-rose-400 shrink-0" />
+                              <span>FLOOD PREDICTED</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span>NOMINAL / SAFE</span>
+                            </>
+                          )}
                         </span>
                       </div>
 
                       {/* 3 Core Factors Breakdown */}
-                      <div className="space-y-1 text-[10px] font-mono">
+                      <div className="space-y-1.5 text-[11px] font-sans">
                         {/* 1. Rainfall Start Time & Duration */}
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-400">1. Rain Active:</span>
-                          <span className="font-bold text-sky-300">{formatRainActiveTime(rainDur, rainMm)}</span>
+                          <span className="text-slate-400 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-sky-400" />
+                            Active Rain:
+                          </span>
+                          <span className="font-semibold text-slate-200">{formatRainActiveTime(rainDur, rainMm)}</span>
                         </div>
 
                         {/* 2. Drainage Capacity */}
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-400">2. Drainage Capacity:</span>
-                          <span className={`font-bold ${drainageVal <= 1.5 ? 'text-red-400 font-black' : 'text-emerald-400'}`}>
-                            {drainageVal.toFixed(2)} km/km² ({drainageVal <= 1.5 ? 'Very Poor / Clogged' : 'Optimal Flow'})
+                          <span className="text-slate-400 flex items-center gap-1">
+                            <Compass className="w-3 h-3 text-teal-400" />
+                            Drainage Capacity:
+                          </span>
+                          <span className={`font-semibold ${drainageVal <= 1.5 ? 'text-rose-400 font-bold' : 'text-slate-200'}`}>
+                            {drainageVal.toFixed(2)} km/km² ({drainageVal <= 1.5 ? 'Poor Drainage' : 'Optimal Flow'})
                           </span>
                         </div>
 
                         {/* 3. Vegetation Root Matrix */}
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-400">3. Vegetation Cover:</span>
-                          <span className={`font-bold ${vegVal <= 0.40 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                            {Math.round(vegVal * 100)}% NDVI ({vegVal <= 0.40 ? 'Sparse / Barren Soil' : 'Dense Forest Matrix'})
+                          <span className="text-slate-400 flex items-center gap-1">
+                            <Trees className="w-3 h-3 text-emerald-400" />
+                            Vegetation Cover:
+                          </span>
+                          <span className={`font-semibold ${vegVal <= 0.40 ? 'text-amber-400' : 'text-slate-200'}`}>
+                            {Math.round(vegVal * 100)}% NDVI ({vegVal <= 0.40 ? 'Sparse Soil' : 'Dense Cover'})
                           </span>
                         </div>
                       </div>
 
                       {/* Prediction Summary & Forecast Window */}
                       <div
-                        className={`p-2 rounded text-[10px] leading-tight font-sans font-semibold border ${
+                        className={`p-2 rounded-lg text-[10px] leading-relaxed font-sans font-medium border ${
                           isFloodPredicted
-                            ? 'bg-red-950/80 border-red-700/60 text-red-200'
-                            : 'bg-emerald-950/70 border-emerald-800/60 text-emerald-200'
+                            ? 'bg-rose-950/40 border-rose-800/40 text-rose-200'
+                            : 'bg-slate-800/80 border-slate-700/60 text-slate-300'
                         }`}
                       >
                         {isFloodPredicted ? (
                           <span>
-                            ⚠️ <strong>Flash Flood Warning:</strong> Continuous rain for {rainDur.toFixed(1)}h with poor drainage ({drainageVal.toFixed(2)}) and sparse vegetation ({Math.round(vegVal * 100)}%). High probability of road submergence in <strong>{address?.placeName || 'this sector'}</strong> within <strong>1–3 hours</strong>.
+                            <strong>Flash Flood Risk:</strong> Sustained rain over {rainDur.toFixed(1)}h with low drainage ({drainageVal.toFixed(2)}) and sparse vegetation ({Math.round(vegVal * 100)}%). Road submergence predicted in <strong>{address?.placeName || 'this sector'}</strong> within 1–3 hours.
                           </span>
                         ) : (
                           <span>
-                            ✅ <strong>Nominal Runoff:</strong> Drainage ({drainageVal.toFixed(2)}) and vegetation ({Math.round(vegVal * 100)}%) are sufficient for current rainfall. No flooding predicted.
+                            <strong>Nominal Conditions:</strong> Terrain drainage ({drainageVal.toFixed(2)}) and topsoil root binding ({Math.round(vegVal * 100)}%) are sufficient to handle current precipitation.
                           </span>
                         )}
                       </div>

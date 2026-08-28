@@ -31,6 +31,10 @@ import {
   Compass,
   ArrowRight,
   RefreshCw,
+  Thermometer,
+  Wind,
+  Building2,
+  CheckCircle2,
 } from 'lucide-react';
 import L from 'leaflet';
 
@@ -481,29 +485,41 @@ export default function AiRiskAnalyzer({
               </div>
 
               {/* Live Satellite Data Source Tag */}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                <span className="flex items-center gap-1.5 text-primary-700 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  🛰️ Satellite Ground Telemetry: {predictionResult.data_source || 'Live Open-Meteo GPM + SRTM DEM Ingestion'}
+              <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 font-medium bg-slate-50 p-2.5 rounded-lg border border-slate-200 gap-2">
+                <span className="flex items-center gap-2 text-primary-800 font-bold">
+                  <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Ground Telemetry: {predictionResult.data_source || 'Open-Meteo GPM + SRTM DEM Ingestion'}</span>
                 </span>
                 {predictionResult.weather && (
-                  <span className="font-mono text-slate-700">
-                    🌡️ {predictionResult.weather.temperature_c}°C • 💧 {predictionResult.weather.relative_humidity_pct}% RH • 💨 {predictionResult.weather.wind_speed_kmh} km/h
+                  <span className="font-mono text-slate-600 text-[10px] flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <Thermometer className="w-3 h-3 text-amber-500" />
+                      {predictionResult.weather.temperature_c}°C
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Droplets className="w-3 h-3 text-sky-500" />
+                      {predictionResult.weather.relative_humidity_pct}% RH
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Wind className="w-3 h-3 text-slate-400" />
+                      {predictionResult.weather.wind_speed_kmh} km/h
+                    </span>
                   </span>
                 )}
               </div>
 
               {/* Urban Flash Flood Alert Banner */}
               {(predictionResult.features?.is_urban_flash_flood || predictionResult.explanation?.includes('Urban flash flood') || predictionResult.explanation?.includes('URBAN FLASH FLOOD')) && (
-                <div className="p-3.5 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg text-xs text-amber-900 flex items-start gap-3 shadow-xs">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-bounce" />
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 shadow-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-extrabold uppercase tracking-wider text-[11px] text-amber-800">
-                      🌆 Urban Flash Flood Alert (Guwahati / Silchar Basin Sector)
+                    <div className="font-bold uppercase tracking-wider text-[10px] text-amber-800 flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-amber-700" />
+                      <span>Urban Flash Flood Alert (Guwahati / Silchar Sector)</span>
                     </div>
-                    <div className="text-xs font-semibold mt-1 text-amber-900 leading-relaxed">
-                      Elevated risk of urban street waterlogging and road submergence due to continuous rain sustained over{' '}
-                      <strong>{predictionResult.features?.rainfall_duration_hours || 4.5} consecutive hours</strong> combined with low drainage capacity ({predictionResult.features?.drainage_quality || '1.10'} km/km²) and sparse vegetation root cover ({predictionResult.features?.vegetation_cover || '0.25'} NDVI).
+                    <div className="text-[11px] font-medium mt-0.5 text-amber-900 leading-relaxed">
+                      Elevated waterlogging risk due to rain sustained over{' '}
+                      <strong>{predictionResult.features?.rainfall_duration_hours || 4.5} consecutive hours</strong> combined with low drainage capacity ({predictionResult.features?.drainage_quality || '1.10'} km/km²) and sparse vegetation cover ({predictionResult.features?.vegetation_cover || '0.25'} NDVI).
                     </div>
                   </div>
                 </div>
