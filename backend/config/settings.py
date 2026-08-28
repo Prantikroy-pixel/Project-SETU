@@ -76,6 +76,7 @@ except Exception:
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'core.middleware.SecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -265,8 +266,8 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS Configuration (Permit Vercel production domains & local development origins)
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS Configuration (SEC-008: Whitelist trusted origins, prevent wildcard Access-Control-Allow-Origin: *)
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 # Whitelist Vite dev frontends and local dev ports
@@ -277,6 +278,8 @@ _DEFAULT_ALLOWED_ORIGINS = [
     'http://127.0.0.1:3000',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
+    'https://setulive.vercel.app',
+    'https://setu-frontend-five.vercel.app',
 ]
 
 cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS')
@@ -288,9 +291,11 @@ if cors_origins_env:
 else:
     CORS_ALLOWED_ORIGINS = _DEFAULT_ALLOWED_ORIGINS
 
-# Automatically permit all Vercel production and preview deployment domains
+# Permit all Vercel production & preview deployment subdomains securely via regex
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
+    r"^http://localhost:[0-9]+$",
+    r"^http://127\.0\.0\.1:[0-9]+$",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
