@@ -26,8 +26,8 @@ from django.core.exceptions import ImproperlyConfigured
 # ─────────────────────────────────────────────────────────────────────────────
 # ENVIRONMENT DETECTION
 # ─────────────────────────────────────────────────────────────────────────────
-IS_VERCEL = os.getenv('VERCEL') == '1' or'VERCEL' in os.environ
-IS_PRODUCTION = not os.getenv('DEBUG','True').lower() in ('true', '1', 'yes')
+IS_VERCEL = os.getenv('VERCEL') == '1' or 'VERCEL' in os.environ
+IS_PRODUCTION = not os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 # ── Supabase Configuration ───────────────────────────────────────────────────
 SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://supabase.com/dashboard/project/nzuhpzgdqtpdjfbovrge')
