@@ -1,0 +1,7 @@
+cat > /Users/prantikroy/claude\ code/project-SETU/.vercelignore << 'EOF'
+requirements.txt
+backend/
+matching_engine/
+database/
+*.py
+EOF
