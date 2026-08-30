@@ -1,44 +1,15 @@
 {
-    "version": 2,
-    "buildCommand": "cd Frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt",
-    "outputDirectory": "Frontend/dist",
-    "builds": [
-      {
-        "src": "backend/config/wsgi.py",
-        "use": "@vercel/python",
-        "config": {
-          "maxDuration": 90,
-          "runtime": "python3.11"
-        }
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api/(.*)",
-        "dest": "backend/config/wsgi.py"
-      },
-      {
-        "src": "/media/(.*)",
-        "dest": "backend/config/wsgi.py"
-      },
-      {
-        "src": "/static/(.*)",
-        "dest": "backend/config/wsgi.py"
-      },
-      {
-        "src": "/(.*\\.(js|css|gif|jpg|jpeg|png|ico|txt|svg|webp|woff|woff2|ttf|otf|eot)$)",
-        "dest": "/Frontend/dist/$1"
-      },
-      {
-        "src": "/.*",
-        "dest": "/Frontend/dist/index.html"
-      }
-    ],
-    "env": {
-      "PYTHONPATH": "/var/task",
-      "SECRET_KEY": "django-insecure-change-me-in-production",
-      "DEBUG": "false",
-      "ALLOWED_HOSTS": "setulive.vercel.app,.vercel.app",
-      "CORS_ALLOWED_ORIGINS": "https://setulive.vercel.app"
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
+  ],
+  "env": {
+    "VITE_SUPABASE_URL": "<YOUR_SUPABASE_URL>",
+    "VITE_SUPABASE_ANON_KEY": "<YOUR_SUPABASE_ANON_KEY>"
   }
+}
