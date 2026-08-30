@@ -1,352 +1,414 @@
 """
-  Django settings for SETU backend project.
-  """
+Django settings for SETU backend project.
+"""
 
-  from pathlib import Path
-  import os
-  import sys
-  from datetime import timedelta
+from pathlib import Path
+import os
+import sys
+from datetime import timedelta
 
-  # Build paths inside the project like this: BASE_DIR / 'subdir'.
-  BASE_DIR = Path(__file__).resolve().parent.parent
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-  # Include root repository directory in sys.path to allow direct matching_engine import
-  ROOT_DIR = BASE_DIR.parent
-  if str(ROOT_DIR) not in sys.path:
-      sys.path.insert(0, str(ROOT_DIR))
+# Include root repository directory in sys.path to allow direct matching_engine import
+ROOT_DIR = BASE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-  try:
-      from dotenv import load_dotenv
-      load_dotenv(BASE_DIR / '.env')
-  except ImportError:
-      pass
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+except ImportError:
+    pass
 
-  from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # ENVIRONMENT DETECTION
-  # ─────────────────────────────────────────────────────────────────────────────
-  IS_VERCEL = os.getenv('VERCEL') == '1' or'VERCEL' in os.environ
-  IS_PRODUCTION = not os.getenv('DEBUG','True').lower() in ('true', '1', 'yes')
+# ─────────────────────────────────────────────────────────────────────────────
+# ENVIRONMENT DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+IS_VERCEL = os.getenv('VERCEL') == '1' or'VERCEL' in os.environ
+IS_PRODUCTION = not os.getenv('DEBUG','True').lower() in ('true', '1', 'yes')
 
-  # Quick-start development settings - unsuitable for production
-  DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
+# ── Supabase Configuration ───────────────────────────────────────────────────
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://supabase.com/dashboard/project/nzuhpzgdqtpdjfbovrge')
+SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56dWhwemdkcXRwZGpmYm92cmdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwNTc0MjEsImV4cCI6MjEwMzYzMzQyMX0.jl9GFtVPsa73n9_UfVUlSX_yY1_9jETtsAGsBq43fvM')
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56dWhwemdkcXRwZGpmYm92cmdlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODA1NzQyMSwiZXhwIjoyMTAzNjMzNDIxfQ.7iRLMg7Sw_YwBdocY_4SYAOyvVlzcSWCCqy5AkG_SSQ')
 
-  SECRET_KEY = os.getenv('SECRET_KEY')
-  if not SECRET_KEY:
-      if DEBUG:
-          SECRET_KEY = 'django-insecure-setu-development-secret-key-do-not-use-in-production'
-      else:
-          raise ImproperlyConfigured("CRITICAL SECURITY VIOLATION: SECRET_KEY environment variable must be set in production.")
+# Derive database connection from Supabase project ref
+# Project ref: nzuhpzgdqtpdjfbovrge
+SUPABASE_PROJECT_REF = os.getenv('SUPABASE_PROJECT_REF', 'nzuhpzgdqtpdjfbovrge')
+SUPABASE_DB_HOST = os.getenv('SUPABASE_DB_HOST', f'supabase-db.{SUPABASE_PROJECT_REF}.supabase.com')
+SUPABASE_DB_PORT = os.getenv('SUPABASE_DB_PORT', '5432')
+SUPABASE_DB_NAME = os.getenv('SUPABASE_DB_NAME', 'postgres')
+SUPABASE_DB_USER = os.getenv('SUPABASE_DB_USER', 'postgres')
+SUPABASE_DB_PASSWORD = os.getenv('SUPABASE_DB_PASSWORD', '')
+SUPABASE_DB_SSL_MODE = os.getenv('SUPABASE_DB_SSL_MODE', 'require')
 
-  # Trust HTTPS proxy headers from Vercel / Nginx load balancers
-  SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# Build DATABASE_URL for Supabase PostgreSQL
+if SUPABASE_DB_PASSWORD:
+    SUPABASE_DATABASE_URL = f"postgresql://{SUPABASE_DB_USER}:{SUPABASE_DB_PASSWORD}@{SUPABASE_DB_HOST}:{SUPABASE_DB_PORT}/postgres?sslmode={SUPABASE_DB_SSL_MODE}"
+else:
+    SUPABASE_DATABASE_URL = f"postgresql://{SUPABASE_DB_USER}@{SUPABASE_DB_HOST}:{SUPABASE_DB_PORT}/postgres?sslmode={SUPABASE_DB_SSL_MODE}"
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # ALLOWED HOSTS CONFIGURATION
-  # ─────────────────────────────────────────────────────────────────────────────
-  if IS_VERCEL:
-      ALLOWED_HOSTS = ['setulive.vercel.app', '.vercel.app', 'localhost', '127.0.0.1']
-  else:
-      allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
-      if allowed_hosts_env:
-          ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
-      else:
-          # Permit all hosts on local development
-          ALLOWED_HOSTS = ['*']
+# ── General Configuration ────────────────────────────────────────────────────
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    SECRET_KEY = 'django-insecure-setu-development-secret-key-do-not-use-in-production'
 
+DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-  # Application definition
-  INSTALLED_APPS = [
-      'django.contrib.admin',
-      'django.contrib.auth',
-      'django.contrib.contenttypes',
-      'django.contrib.sessions',
-      'django.contrib.messages',
-      'django.contrib.staticfiles',
+# Trust HTTPS proxy headers from Vercel / Nginx load balancers
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-      # Third party packages
-      'rest_framework',
-      'rest_framework_simplejwt',
-      'corsheaders',
+# ─────────────────────────────────────────────────────────────────────────────
+# ALLOWED HOSTS CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+if IS_VERCEL:
+    ALLOWED_HOSTS = ['setulive.vercel.app', '.vercel.app', 'localhost', '127.0.0.1']
+else:
+    allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
+    if allowed_hosts_env:
+        ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
+    else:
+        # Permit all hosts on local development
+        ALLOWED_HOSTS = ['*']
 
-      # SETU apps
-      'accounts',
-      'core',
-      'logistics',
-      'matching',
-      'dashboard',
-  ]
+# Application definition
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
 
-  # Check if GeoDjango GIS app is usable in this environment
-  try:
-      from django.contrib.gis.gdal import HAS_GDAL
-      if HAS_GDAL:
-          INSTALLED_APPS.insert(0, 'django.contrib.gis')
-  except Exception:
-      pass
+    # Third party packages
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'corsheaders',
 
-  MIDDLEWARE = [
-      'corsheaders.middleware.CorsMiddleware',
-      'django.middleware.security.SecurityMiddleware',
-      'core.middleware.SecurityHeadersMiddleware',
-      'whitenoise.middleware.WhiteNoiseMiddleware',
-      'django.contrib.sessions.middleware.SessionMiddleware',
-      'django.middleware.common.CommonMiddleware',
-      'django.middleware.csrf.CsrfViewMiddleware',
-      'django.contrib.auth.middleware.AuthenticationMiddleware',
-      'django.contrib.messages.middleware.MessageMiddleware',
-      'django.middleware.clickjacking.XFrameOptionsMiddleware',
-  ]
+    # SETU apps
+    'accounts',
+    'core',
+    'logistics',
+    'matching',
+    'dashboard',
+]
 
-  ROOT_URLCONF = 'config.urls'
+# Check if GeoDjango GIS app is usable in this environment
+try:
+    from django.contrib.gis.gdal import HAS_GDAL
+    if HAS_GDAL:
+        INSTALLED_APPS.insert(0, 'django.contrib.gis')
+except Exception:
+    pass
 
-  TEMPLATES = [
-      {
-          'BACKEND': 'django.template.backends.django.DjangoTemplates',
-          'DIRS': [BASE_DIR / 'templates'],
-          'APP_DIRS': True,
-          'OPTIONS': {
-              'context_processors': [
-                  'django.template.context_processors.request',
-                  'django.contrib.auth.context_processors.auth',
-                  'django.contrib.messages.context_processors.messages',
-              ],
-          },
-      },
-  ]
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'core.middleware.SecurityHeadersMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
 
-  WSGI_APPLICATION = 'config.wsgi.application'
-  ASGI_APPLICATION = 'config.asgi.application'
+ROOT_URLCONF = 'config.urls'
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # DATABASE CONFIGURATION
-  # ─────────────────────────────────────────────────────────────────────────────
-  DATABASE_URL = os.getenv('DATABASE_URL')
-  USE_SQLITE = os.getenv('USE_SQLITE', 'False').lower() in ('true', '1')
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
 
-  # Determine SQLite path based on environment
-  if IS_VERCEL:
-      SQLITE_DB_PATH = Path('/tmp') / 'db.sqlite3'
-      # Copy pre-populated SQLite DB to /tmp to preserve migrations and seed data
-      original_db = BASE_DIR / 'db.sqlite3'
-      if original_db.exists() and not SQLITE_DB_PATH.exists():
-          try:
-              import shutil
-              shutil.copy2(original_db, SQLITE_DB_PATH)
-          except Exception:
-              pass
-  else:
-      SQLITE_DB_PATH = BASE_DIR / 'db.sqlite3'
+WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 
-  def _is_postgres_available(host, port, user, password, dbname):
-      """Check if PostgreSQL database is available"""
-      if USE_SQLITE:
-          return False
-      try:
-          import psycopg2
-          conn = psycopg2.connect(
-              host=host, port=port, user=user, password=password, dbname=dbname, connect_timeout=1
-          )
-          conn.close()
-          return True
-      except Exception:
-          return False
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE CONFIGURATION - Supabase PostgreSQL with PostGIS
+# ─────────────────────────────────────────────────────────────────────────────
+# Priority: DATABASE_URL (Vercel) > SUPABASE_DATABASE_URL > Individual DB_* vars > SQLite fallback
 
-  # Try DATABASE_URL first (Vercel production)
-  if DATABASE_URL and not USE_SQLITE:
-      import urllib.parse
-      parsed_url = urllib.parse.urlparse(DATABASE_URL)
-      pg_host = parsed_url.hostname or 'localhost'
-      pg_port = parsed_url.port or 5432
-      pg_user = parsed_url.username or 'postgres'
-      pg_pass = parsed_url.password or ''
-      pg_name = parsed_url.path.lstrip('/')
+DATABASES = {}
 
-      if _is_postgres_available(pg_host, pg_port, pg_user, pg_pass, pg_name):
-          engine = 'django.db.backends.postgresql'
-          if'postgis' in parsed_url.scheme:
-              try:
-                  from django.contrib.gis.db.backends.postgis import base
-                  engine = 'django.contrib.gis.db.backends.postgis'
-              except Exception:
-                  engine = 'django.db.backends.postgresql'DATABASES = {
-              'default': {
-                  'ENGINE': engine,
-                  'NAME': pg_name,
-                  'USER': pg_user,
-                  'PASSWORD': pg_pass,
-                  'HOST': pg_host,
-                  'PORT': pg_port,
-              }
-          }
-      else:
-          DATABASES = {
-              'default': {
-                  'ENGINE': 'django.db.backends.sqlite3',
-                  'NAME': SQLITE_DB_PATH,
-              }
-          }
-  # Try individual DB_* environment variables (Render, local)
-  elif os.getenv('DB_NAME') and not USE_SQLITE:
-      pg_host = os.getenv('DB_HOST', 'localhost')
-      pg_port = os.getenv('DB_PORT', '5432')
-      pg_user = os.getenv('DB_USER', 'postgres')
-      pg_pass = os.getenv('DB_PASSWORD', '')
-      pg_name = os.getenv('DB_NAME')
+# Try DATABASE_URL first (Vercel production)
+DATABASE_URL = os.getenv('DATABASE_URL')
+USE_SQLITE = os.getenv('USE_SQLITE', 'False').lower() in ('true', '1')
 
-      if _is_postgres_available(pg_host, pg_port, pg_user, pg_pass, pg_name):
-          db_engine = 'django.db.backends.postgresql'
-          try:
-              from django.contrib.gis.db.backends.postgis import base
-              db_engine = 'django.contrib.gis.db.backends.postgis'
-          except Exception:
-              db_engine = 'django.db.backends.postgresql'
+if DATABASE_URL and not USE_SQLITE:
+    import urllib.parse
+    parsed_url = urllib.parse.urlparse(DATABASE_URL)
+    pg_host = parsed_url.hostname or 'localhost'
+    pg_port = parsed_url.port or 5432
+    pg_user = parsed_url.username or 'postgres'
+    pg_pass = parsed_url.password or ''
+    pg_name = parsed_url.path.lstrip('/')
 
-          DATABASES = {
-              'default': {
-                  'ENGINE': os.getenv('DB_ENGINE', db_engine),
-                  'NAME': pg_name,
-                  'USER': pg_user,
-                  'PASSWORD': pg_pass,
-                  'HOST': pg_host,
-                  'PORT': pg_port,
-              }
-          }
-      else:
-          DATABASES = {
-              'default': {
-                  'ENGINE': 'django.db.backends.sqlite3',
-                  'NAME': SQLITE_DB_PATH,
-              }
-          }
-  # Fallback to SQLite
-  else:
-      DATABASES = {
-          'default': {
-              'ENGINE': 'django.db.backends.sqlite3',
-              'NAME': SQLITE_DB_PATH,
-          }
-      }
+    # Check if PostgreSQL is available
+    import psycopg2
+    try:
+        conn = psycopg2.connect(
+            host=pg_host, port=pg_port, user=pg_user, password=pg_pass, dbname=pg_name, connect_timeout=1
+        )
+        conn.close()
+        pg_available = True
+    except Exception:
+        pg_available = False
 
-  # Password validation
-  AUTH_PASSWORD_VALIDATORS = [
-      {
-          'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-      },
-      {
-          'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-      },
-      {
-          'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-      },
-      {
-          'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-      },
-  ]
+    if pg_available:
+        engine = 'django.db.backends.postgresql'
+        # Check for PostGIS
+        try:
+            from django.contrib.gis.db.backends.postgis import base
+            engine = 'django.contrib.gis.db.backends.postgis'
+        except Exception:
+            engine = 'django.db.backends.postgresql'
 
-  # Custom User Model
-  AUTH_USER_MODEL = 'accounts.User'
+        DATABASES['default'] = {
+            'ENGINE': engine,
+            'NAME': pg_name,
+            'USER': pg_user,
+            'PASSWORD': pg_pass,
+            'HOST': pg_host,
+            'PORT': pg_port,
+        }
+    else:
+        DATABASES['default'] = {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': Path('/tmp') / 'db.sqlite3' if IS_VERCEL else BASE_DIR / 'db.sqlite3',
+        }
+elif SUPABASE_DATABASE_URL and not USE_SQLITE:
+    # Use Supabase PostgreSQL
+    import psycopg2
+    try:
+        conn = psycopg2.connect(
+            host=SUPABASE_DB_HOST, port=SUPABASE_DB_PORT, user=SUPABASE_DB_USER, password=SUPABASE_DB_PASSWORD, dbname=SUPABASE_DB_NAME, connect_timeout=1
+        )
+        conn.close()
+        pg_available = True
+    except Exception:
+        pg_available = False
 
-  # Internationalization
-  LANGUAGE_CODE = 'en-us'
-  TIME_ZONE = 'UTC'
-  USE_I18N = True
-  USE_TZ = True
+    if pg_available:
+        DATABASES['default'] = {
+            'ENGINE': 'django.contrib.gis.db.backends.postgis',
+            'NAME': SUPABASE_DB_NAME,
+            'USER': SUPABASE_DB_USER,
+            'PASSWORD': SUPABASE_DB_PASSWORD,
+            'HOST': SUPABASE_DB_HOST,
+            'PORT': SUPABASE_DB_PORT,
+        }
+    else:
+        DATABASES['default'] = {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': Path('/tmp') / 'db.sqlite3' if IS_VERCEL else BASE_DIR / 'db.sqlite3',
+        }
+elif os.getenv('DB_NAME') and not USE_SQLITE:
+    # Individual DB_* environment variables (Render, local)
+    pg_host = os.getenv('DB_HOST', 'localhost')
+    pg_port = os.getenv('DB_PORT', '5432')
+    pg_user = os.getenv('DB_USER', 'postgres')
+    pg_pass = os.getenv('DB_PASSWORD', '')
+    pg_name = os.getenv('DB_NAME')
 
-  # Static & Media files
-  STATIC_URL = '/static/'
-  STATIC_ROOT = BASE_DIR / 'staticfiles'
+    import psycopg2
+    try:
+        conn = psycopg2.connect(
+            host=pg_host, port=pg_port, user=pg_user, password=pg_pass, dbname=pg_name, connect_timeout=1
+        )
+        conn.close()
+        pg_available = True
+    except Exception:
+        pg_available = False
 
-  MEDIA_URL = '/media/'
-  MEDIA_ROOT = os.getenv('MEDIA_ROOT', str(BASE_DIR / 'media'))
+    if pg_available:
+        db_engine = 'django.db.backends.postgresql'
+        try:
+            from django.contrib.gis.db.backends.postgis import base
+            db_engine = 'django.contrib.gis.db.backends.postgis'
+        except Exception:
+            db_engine = 'django.db.backends.postgresql'
 
-  # REST Framework configuration
-  REST_FRAMEWORK = {
-      'DEFAULT_AUTHENTICATION_CLASSES': (
-          'rest_framework_simplejwt.authentication.JWTAuthentication',
-      ),
-      'DEFAULT_PERMISSION_CLASSES': (
-          'rest_framework.permissions.IsAuthenticatedOrReadOnly',
-      ),
-      'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-      'PAGE_SIZE': 50,
-  }
+        DATABASES['default'] = {
+            'ENGINE': os.getenv('DB_ENGINE', db_engine),
+            'NAME': pg_name,
+            'USER': pg_user,
+            'PASSWORD': pg_pass,
+            'HOST': pg_host,
+            'PORT': pg_port,
+        }
+    else:
+        DATABASES['default'] = {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': Path('/tmp') / 'db.sqlite3' if IS_VERCEL else BASE_DIR / 'db.sqlite3',
+        }
+else:
+    # Fallback to SQLite
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': Path('/tmp') / 'db.sqlite3' if IS_VERCEL else BASE_DIR / 'db.sqlite3',
+    }
 
-  # SimpleJWT configuration
-  jwt_lifetime = int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME_MIN', '60'))
-  SIMPLE_JWT = {
-      'ACCESS_TOKEN_LIFETIME': timedelta(minutes=jwt_lifetime),
-      'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-      'ROTATE_REFRESH_TOKENS': True,
-      'BLACKLIST_AFTER_ROTATION': False,
-      'AUTH_HEADER_TYPES': ('Bearer',),
-  }
+# Password validation
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # CORS Configuration (SEC-008)
-  # Whitelist trusted origins, prevent wildcard Access-Control-Allow-Origin: *
-  #─────────────────────────────────────────────────────────────────────────────
-  CORS_ALLOW_ALL_ORIGINS = False
-  CORS_ALLOW_CREDENTIALS = True
+# Custom User Model
+AUTH_USER_MODEL = 'accounts.User'
 
-  # Default allowed origins for development and production
-  _DEFAULT_ALLOWED_ORIGINS = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-      'https://setulive.vercel.app',
-      'https://setu-frontend-five.vercel.app',
-  ]
+# Internationalization
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
 
-  cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS')
-  if cors_origins_env:
-      CORS_ALLOWED_ORIGINS = list(set(
-          [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
-          + _DEFAULT_ALLOWED_ORIGINS
-      ))
-  else:
-      CORS_ALLOWED_ORIGINS = _DEFAULT_ALLOWED_ORIGINS
+# Static & Media files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-  # Permit all Vercel production & preview deployment subdomains securely via regex
-  CORS_ALLOWED_ORIGIN_REGEXES = [
-      r"^https://.*\.vercel\.app$",
-      r"^http://localhost:[0-9]+$",
-      r"^http://127\.0\.0\.1:[0-9]+$",
-  ]
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.getenv('MEDIA_ROOT', str(BASE_DIR / 'media'))
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # HTTP Security Response Headers (SEC-009)
-  # ─────────────────────────────────────────────────────────────────────────────
-  SECURE_CONTENT_TYPE_NOSNIFF = True
-  X_FRAME_OPTIONS = 'DENY'
-  SECURE_BROWSER_XSS_FILTER = True
-  SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-  SESSION_COOKIE_HTTPONLY = True
-  CSRF_COOKIE_HTTPONLY = True
+# REST Framework configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+}
 
-  # Production HTTPS and Transport Security
-  if not DEBUG and IS_VERCEL:
-      SECURE_SSL_REDIRECT = True
-      SESSION_COOKIE_SECURE = True
-      CSRF_COOKIE_SECURE = True
-      SECURE_HSTS_SECONDS = 31536000  # 1 Year
-      SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-      SECURE_HSTS_PRELOAD = True
-  elif not DEBUG:
-      # Non-Vercel production
-      SECURE_SSL_REDIRECT = True
-      SESSION_COOKIE_SECURE = True
-      CSRF_COOKIE_SECURE = True
-      SECURE_HSTS_SECONDS = 31536000
-      SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-      SECURE_HSTS_PRELOAD = True
+# SimpleJWT configuration
+jwt_lifetime = int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME_MIN', '60'))
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=jwt_lifetime),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
 
-  # Weather & SMS Gateways API Keys
-  WEATHER_API_KEY = os.getenv('WEATHER_API_KEY', '')
-  SMS_GATEWAY_API_KEY = os.getenv('SMS_GATEWAY_API_KEY', '')
+# ─────────────────────────────────────────────────────────────────────────────
+# CORS Configuration (SEC-008)
+# Whitelist trusted origins, prevent wildcard Access-Control-Allow-Origin: *
+# ─────────────────────────────────────────────────────────────────────────────
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
 
-  DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Default allowed origins for development and production
+_DEFAULT_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'https://setulive.vercel.app',
+    'https://setu-frontend-five.vercel.app',
+]
+
+cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS')
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS = list(set(
+        [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+        + _DEFAULT_ALLOWED_ORIGINS
+    ))
+else:
+    CORS_ALLOWED_ORIGINS = _DEFAULT_ALLOWED_ORIGINS
+
+# Permit all Vercel production & preview deployment subdomains securely via regex
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^http://localhost:[0-9]+$",
+    r"^http://127\.0\.0\.1:[0-9]+$",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HTTP Security Response Headers (SEC-009)
+# ─────────────────────────────────────────────────────────────────────────────
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
+# Production HTTPS and Transport Security
+if not DEBUG and IS_VERCEL:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 Year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+elif not DEBUG:
+    # Non-Vercel production
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+# Weather & SMS Gateways API Keys
+WEATHER_API_KEY = os.getenv('WEATHER_API_KEY', '')
+SMS_GATEWAY_API_KEY = os.getenv('SMS_GATEWAY_API_KEY', '')
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUPABASE AUTH INTEGRATION SETTINGS
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuration for Supabase JWT authentication validation
+
+# Supabase JWT audience and issuer
+SUPABASE_JWT_AUDIENCE = os.getenv('SUPABASE_JWT_AUDIENCE', 'authenticated')
+SUPABASE_JWT_ISSUER = os.getenv('SUPABASE_JWT_ISSUER', f'https://{SUPABASE_PROJECT_REF}.supabase.co/auth')
+
+# JWT verification settings from Supabase
+SIMPLE_JWT['VERIFY_EXPIRATION'] = os.getenv('JWT_VERIFY_EXPIRATION', 'True').lower() in ('true', '1', 'yes')
+SIMPLE_JWT['AUTH_TOKEN_MODEL'] = os.getenv('JWT_AUTH_TOKEN_MODEL', 'auth.User')
+
+# CORS origins from Supabase project URL
+if SUPABASE_URL:
+    import re
+    # Extract project reference from URL
+    match = re.search(r'supabase\.co/([a-z0-9_-]+)', SUPABASE_URL)
+    if match:
+        PROJECT_REF = match.group(1)
+        # Add Supabase subdomains to CORS
+        CORS_ALLOWED_ORIGINS += [
+            f'https://{PROJECT_REF}.supabase.co',
+            f'https://{PROJECT_REF}.supabase.in',
+        ]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# END SUPABASE CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
