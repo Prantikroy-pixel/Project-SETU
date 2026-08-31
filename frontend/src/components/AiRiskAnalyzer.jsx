@@ -544,7 +544,7 @@ export default function AiRiskAnalyzer({
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <div className="text-slate-400 font-bold uppercase text-[10px] flex items-center gap-1">
                     <Activity className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Rain Duration</span>
+                    <span></span>
                   </div>
                   <div className="text-sm font-black text-slate-900 mt-1">
                     {predictionResult.features?.rainfall_duration_hours ?? '1.0'} hrs
