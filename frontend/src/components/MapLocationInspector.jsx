@@ -70,20 +70,7 @@ const inspectorIcon = new L.DivIcon({
   popupAnchor: [0, -14],
 });
 
-function formatRainActiveTime(durationHours, rainfallMm = 1.0) {
-  if (!rainfallMm || rainfallMm <= 0 || !durationHours || durationHours <= 0) {
-    return 'Clear / No Active Rain';
-  }
-  const now = new Date();
-  const startTime = new Date(now.getTime() - durationHours * 60 * 60 * 1000);
-  let hours = startTime.getHours();
-  const minutes = startTime.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  const minStr = minutes < 10 ? '0' + minutes : minutes;
-  return `Since ${hours}:${minStr} ${ampm} (${durationHours.toFixed(1)} hrs continuous)`;
-}
+
 
 export default function MapLocationInspector({
   conditions = [],
